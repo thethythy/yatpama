@@ -10,11 +10,7 @@
 #include "lib/aes.h"
 #include "lib/hmac_sha256.h"
 
-#define IV_SIZE  16     // Taille de IV en octets 
-#define KEY_SIZE 16     // Taille de la clé pour AES128 en octets
-#define MAX_SIZE 256    // Taille maximale des informations en octets
-#define PWD_SIZE 12     // Taille minimale du mot de passe
-#define HASH_SIZE 32    // Taille du HMAC (utilise SHA256)
+#include "yatpama.h"
 
 /*
  * Interface principale
@@ -27,7 +23,7 @@ char prompt() {
     do {
         printf("\n      yatpama : Yet Another Tiny Password Manager     ");
         printf("\n------------------------------------------------------");
-        printf("\nCds:  k password | p print | s search | a add | q quit");
+        printf("\nCds: k password | p print | s search | a add | q quit ");
         printf("\n------------------------------------------------------");
         printf("\nChoose a command: ");
         cmd = getchar();
@@ -77,16 +73,12 @@ void search_and_print(uint8_t key[], char* pattern) {
 
         int nblus;
         int erreur = 0;
-
         int nbInfo = 0;
 
-        uint8_t iv[IV_SIZE]; // Pour AES128, IV de 16 octets
-        uint8_t information[MAX_SIZE];
-        uint8_t secret[MAX_SIZE];
-        uint8_t hash[HASH_SIZE];
+        Entry entry; // L'enregistrement
 
-        uint8_t hash2[HASH_SIZE];
-        uint8_t text[MAX_SIZE * 2];
+        uint8_t hash2[HASH_SIZE];  // Hash de contrôle
+        uint8_t text[MAX_SIZE * 2];  // Texte à contrôler
 
         struct AES_ctx ctx;
 
@@ -102,58 +94,34 @@ void search_and_print(uint8_t key[], char* pattern) {
         }
 
         do {
-            // Lecture de IV pour déchiffrer information
-            nblus = read(fp, iv, sizeof iv);
-            erreur = nblus != sizeof iv;
-                
-            // Lecture de information chiffrée
-            if (!erreur) {
-                nblus = read(fp, information, sizeof information);
-                erreur = nblus != sizeof information;
-            }
+            // Lecture de l'enregistrement
+            nblus = read(fp, &entry, sizeof entry);
+            erreur = nblus != sizeof entry;
 
             // Déchiffrement de information
             if (!erreur) {
-                AES_init_ctx_iv(&ctx, key, iv);
-                AES_CBC_decrypt_buffer(&ctx, information, sizeof information);
-            }
-
-            // Lecture de IV pour déchiffrer secret
-            if (!erreur) {
-                nblus = read(fp, iv, sizeof iv);
-                erreur = nblus != sizeof iv;
-            }
-
-            // Lecture de secret chiffrée
-            if (!erreur) {
-                nblus = read(fp, secret, sizeof secret);
-                erreur = nblus != sizeof secret;
+                AES_init_ctx_iv(&ctx, key, entry.iv_info);
+                AES_CBC_decrypt_buffer(&ctx, entry.information, sizeof entry.information);
             }
 
             // Déchiffrement de secret
             if (!erreur) {
-                AES_init_ctx_iv(&ctx, key, iv);
-                AES_CBC_decrypt_buffer(&ctx, secret, sizeof secret);
-            }
-
-            // Lecture du hash
-            if (!erreur) {
-                nblus = read(fp, hash, sizeof hash);
-                erreur = nblus != sizeof hash;
-            }
+                AES_init_ctx_iv(&ctx, key, entry.iv_sec);
+                AES_CBC_decrypt_buffer(&ctx, entry.secret, sizeof entry.secret);
+            }     
 
             // Contrôle du hash
             if (!erreur) {
                 // Construction de text (avec concat)
                 memset(text, 0, sizeof text);
-                concat(text, information);
-                concat(text, secret);
+                concat(text, entry.information);
+                concat(text, entry.secret);
 
                 // Calcul de hash2
-                hmac_sha256(text, sizeof text, key, KEY_SIZE, hash2);
+                hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
          
                 // Comparaison de hash avec hash2 (fonction compare)
-                if (-1 == compare(hash, sizeof hash, hash2, sizeof hash2)) {
+                if (-1 == compare(entry.hash, sizeof entry.hash, hash2, sizeof hash2)) {
                     fprintf(stderr, "\nWrong password or data file has been corrupted!\n");
                     close(fp);
                     exit(1);
@@ -165,15 +133,15 @@ void search_and_print(uint8_t key[], char* pattern) {
                 int match2 = 0;
 
                 if (pattern) {
-                    match1 = regexec(&reg, (char *)information, 0, NULL, 0);
-                    match2 = regexec(&reg, (char *)secret, 0, NULL, 0);
+                    match1 = regexec(&reg, (char *)entry.information, 0, NULL, 0);
+                    match2 = regexec(&reg, (char *)entry.secret, 0, NULL, 0);
                 }
 
                 if (!match1 || !match2) {
                     printf("\nInformation: ");
-                    printf("%s", information);
+                    printf("%s", entry.information);
                     printf("\nSecret: ");
-                    printf("%s\n", secret);
+                    printf("%s\n", entry.secret);
                     nbInfo++;
                 }
             }
@@ -220,21 +188,20 @@ void do_command_search(uint8_t key[]) {
  * On ajoute également une valeur hmac pour plus de sécurité
  */
 void do_command_add(uint8_t key[]) {
-    uint8_t information[MAX_SIZE];
-    uint8_t secret[MAX_SIZE];
+    Entry entry; 
 
     printf("Information: ");
-    getsl((char*)information, MAX_SIZE);
+    getsl((char*)entry.information, MAX_SIZE);
 
     printf("Secret: ");
-    getsl((char*)secret, MAX_SIZE);
+    getsl((char*)entry.secret, MAX_SIZE);
 
     // Construction de text en concaténant les deux chaines
     // text == information | secret
     uint8_t text[MAX_SIZE * 2];
     memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-    concat(text, information);
-    concat(text, secret);
+    concat(text, entry.information);
+    concat(text, entry.secret);
 
     int fp;
     ssize_t nbBytes;
@@ -246,45 +213,30 @@ void do_command_add(uint8_t key[]) {
         fp = creat("./yatpama.data", 0600);
 
     if (fp != -1) {
-        uint8_t iv[IV_SIZE]; // Pour AES128, IV de 16 octets
         struct AES_ctx ctx;
 
         lseek(fp, 0L, SEEK_END); // Se placer à la fin du fichier
 
-        rng(iv, IV_SIZE);
-        nbBytes = write(fp, iv, IV_SIZE);
-	    erreur = nbBytes != IV_SIZE;
+        // Générer IV pour chiffrer information
+        rng(entry.iv_info, AES_BLOCKLEN);
 
-	    if (!erreur) {
-            AES_init_ctx_iv(&ctx, key, iv);
-            AES_CBC_encrypt_buffer(&ctx, information, sizeof information);
-            nbBytes = write(fp, information, sizeof information);
-		    erreur = nbBytes != sizeof information;
-	    }
+        // Chiffrer information
+        AES_init_ctx_iv(&ctx, key, entry.iv_info);
+        AES_CBC_encrypt_buffer(&ctx, entry.information, sizeof entry.information);
 	
-        if (!erreur) {
-            rng(iv, sizeof iv);
-            nbBytes = write(fp, iv, sizeof iv);
-	        erreur = nbBytes != sizeof iv;
-        }
+        // Générer IV pour secret
+        rng(entry.iv_sec, sizeof entry.iv_sec);
 
-	    if (!erreur) {
-            AES_init_ctx_iv(&ctx, key, iv);
-            AES_CBC_encrypt_buffer(&ctx, secret, sizeof secret);
-            nbBytes = write(fp, secret, sizeof secret);
-            erreur = nbBytes != sizeof secret;
-	    }
+	    // Chiffrer secret
+        AES_init_ctx_iv(&ctx, key, entry.iv_sec);
+        AES_CBC_encrypt_buffer(&ctx, entry.secret, sizeof entry.secret);
 
-        if (!erreur) {
-            BYTE hash[HASH_SIZE];
+        // Calcul du HMAC sur la chaine text
+        hmac_sha256(text, sizeof text, key, AES_KEYLEN, entry.hash);
 
-            // Calcul du HMAC sur la chaine text
-            hmac_sha256(text, sizeof text, key, KEY_SIZE, hash);
-
-            // Ecriture du hash dans le fichier
-            nbBytes = write(fp, hash, sizeof hash);
-            erreur = nbBytes != sizeof hash;
-        }
+        // Ecriture de la structure dans le fichier
+        nbBytes = write(fp, &entry, sizeof entry);
+        erreur = nbBytes != sizeof entry;
 
         if (erreur) {
             fprintf(stderr, "Impossible to write in data file!\n");
@@ -302,7 +254,7 @@ void do_command_add(uint8_t key[]) {
 
 int main(int argc, char* argv[]) {
     char command; // La commande en cours
-    uint8_t key[KEY_SIZE]; // Clé de chiffrement pour AES128
+    uint8_t key[AES_KEYLEN]; // Clé de chiffrement pour AES128
     int has_key = 0; // Flag pour indiquer si la clé est connue ou pas
 
     do {
@@ -343,5 +295,5 @@ int main(int argc, char* argv[]) {
         }
     } while (command != 'q');
 
-    memset(key, 0, KEY_SIZE); // On oublie le master key
+    memset(key, 0, AES_KEYLEN); // On oublie le master key
 }
