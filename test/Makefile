@@ -42,7 +42,16 @@ test_HMAC_SHA256 : test_hmac_sha256.o $(LIBDIR)/hmac_sha256.o $(LIBDIR)/sha256.c
 	$(LD) $(LDFLAGS) -o $@ $^
 	mv test_HMAC_SHA256 ..
 
-all : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256
+test_dllist.o : test_dllist.c $(LIBDIR)/dllist.h $(LIBDIR)/dllist.c
+	echo [CC] $@
+	$(CC) $(CFLAGS) -o $@ $<
+
+test_dllist : test_dllist.o $(LIBDIR)/dllist.o
+	echo [LD] $@
+	$(LD) $(LDFLAGS) -o $@ $^
+	mv test_dllist ..
+
+all : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist
 
 clean :
 	rm -f *.o

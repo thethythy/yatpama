@@ -5,10 +5,11 @@
 #include <stdlib.h>
 #include <regex.h>
 
-#include "lib/utilities.h"
-#include "lib/crypto.h"
 #include "lib/aes.h"
+#include "lib/crypto.h"
+#include "lib/dllist.h"
 #include "lib/hmac_sha256.h"
+#include "lib/utilities.h"
 
 #include "yatpama.h"
 
@@ -21,9 +22,10 @@ char prompt() {
     int again;
 
     do {
+        printf("\n------------------------------------------------------");
         printf("\n      yatpama : Yet Another Tiny Password Manager     ");
         printf("\n------------------------------------------------------");
-        printf("\nCds: k password | p print | s search | a add | q quit ");
+        printf("\n   k password | p print | s search | a add | q quit   ");
         printf("\n------------------------------------------------------");
         printf("\nChoose a command: ");
         cmd = getchar();
@@ -62,23 +64,20 @@ void do_command_key(uint8_t key[]) {
  * Affiche les informations secrètes actuellement connues en tenant compte d'un motif
  * Si le motif est NULL alors toutes les infos seront affichées
  * La fonction connaît la clé (1er paramètre)
- * La fonction connait le motif recherché (second paramètre)
+ * La fonction connaît la liste des entrées chiffrées (second paramètre)
+ * La fonction connait le motif recherché (troisième paramètre)
  */
-void search_and_print(uint8_t key[], char* pattern) {
-    int fp;
-    
-    fp = open("./yatpama.data", O_RDONLY);
+void search_and_print(uint8_t key[], DLList list, char* pattern) {
+    if (!isEmpty_DLList(list)) {
 
-    if (fp != -1) {
-
-        int nblus;
         int erreur = 0;
         int nbInfo = 0;
+        int nbInfoMatch = 0;
 
-        Entry entry; // L'enregistrement
+        Entry * pentry; // Pointeur sur l'enregistrement
 
-        uint8_t hash2[HASH_SIZE];  // Hash de contrôle
-        uint8_t text[MAX_SIZE * 2];  // Texte à contrôler
+        uint8_t information[MAX_SIZE];
+        uint8_t secret[MAX_SIZE];
 
         struct AES_ctx ctx;
 
@@ -88,88 +87,76 @@ void search_and_print(uint8_t key[], char* pattern) {
             erreur = regcomp(&reg, pattern, REG_EXTENDED | REG_ICASE | REG_NOSUB);
             if (erreur) {
                 fprintf(stderr, "Wrong search pattern!\n");
-                close(fp);
+                del_DLList(&list);
                 exit(1);
             }
         }
 
         do {
-            // Lecture de l'enregistrement
-            nblus = read(fp, &entry, sizeof entry);
-            erreur = nblus != sizeof entry;
+            // Obtenir l'enregistrement courant de la liste
+            pentry = list->entry;
 
-            // Déchiffrement de information
-            if (!erreur) {
-                AES_init_ctx_iv(&ctx, key, entry.iv_info);
-                AES_CBC_decrypt_buffer(&ctx, entry.information, sizeof entry.information);
+            // Déchiffrement de information en mémoire
+            memcpy(information, pentry->information, MAX_SIZE);
+            AES_init_ctx_iv(&ctx, key, pentry->iv_info);
+            AES_CBC_decrypt_buffer(&ctx, information, sizeof information);
+
+            // Déchiffrement de secret en mémoire
+            memcpy(secret, pentry->secret, MAX_SIZE);
+            AES_init_ctx_iv(&ctx, key, pentry->iv_sec);
+            AES_CBC_decrypt_buffer(&ctx, secret, sizeof secret);
+
+            // Pattern matching
+            int match1 = 0;
+            int match2 = 0;
+
+            if (pattern) {
+                match1 = regexec(&reg, (char *)information, 0, NULL, 0);
+                match2 = regexec(&reg, (char *)secret, 0, NULL, 0);
             }
 
-            // Déchiffrement de secret
-            if (!erreur) {
-                AES_init_ctx_iv(&ctx, key, entry.iv_sec);
-                AES_CBC_decrypt_buffer(&ctx, entry.secret, sizeof entry.secret);
-            }     
+            // Affichage des informations
+            nbInfo++; // On incrèmente le numéro de l'entrée
 
-            // Contrôle du hash
-            if (!erreur) {
-                // Construction de text (avec concat)
-                memset(text, 0, sizeof text);
-                concat(text, entry.information);
-                concat(text, entry.secret);
-
-                // Calcul de hash2
-                hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
-         
-                // Comparaison de hash avec hash2 (fonction compare)
-                if (-1 == compare(entry.hash, sizeof entry.hash, hash2, sizeof hash2)) {
-                    fprintf(stderr, "\nWrong password or data file has been corrupted!\n");
-                    close(fp);
-                    exit(1);
-                }
+            if (!match1 || !match2) {
+                printf("\nEntry n°%i:", nbInfo);
+                printf("\n\tInformation: ");
+                printf("\t%s", information);
+                printf("\n\tSecret: ");
+                printf("\t%s\n", secret);
+                nbInfoMatch++;
             }
 
-            if (!erreur) {
-                int match1 = 0;
-                int match2 = 0;
+            // Mise à zéro des zones mémoires utilisées
+            memset(information, 0, sizeof information);
+            memset(secret, 0, sizeof secret);
 
-                if (pattern) {
-                    match1 = regexec(&reg, (char *)entry.information, 0, NULL, 0);
-                    match2 = regexec(&reg, (char *)entry.secret, 0, NULL, 0);
-                }
+            list = next_DLList(list); // Noeud suivant
 
-                if (!match1 || !match2) {
-                    printf("\nInformation: ");
-                    printf("%s", entry.information);
-                    printf("\nSecret: ");
-                    printf("%s\n", entry.secret);
-                    nbInfo++;
-                }
-            }
+        } while(!isEmpty_DLList(list));
 
-        } while(!erreur);
-
-        printf("\nNumber of information found: %i\n", nbInfo);
-        close(fp);
+        printf("\nNumber of information found: %i\n", nbInfoMatch);
 
     } else {
-        fprintf(stderr, "Impossible to open data file!\n");
-        exit(1);
+        printf("\nThere is no entry yet!\n");
     }
 }
 
 /*
  * Affiche toutes les informations secrètes actuellement connues
- * La fonction connaît la clé (paramètre)
+ * La fonction connaît la clé (paramètre 1)
+ * La fonction connaît la liste des entrées chiffrées (paramètre 2)
  */
-void do_command_print(uint8_t key[]) {
-    search_and_print(key, NULL);
+void do_command_print(uint8_t key[], DLList list) {
+    search_and_print(key, list, NULL);
 }
 
 /*
  * Recherche les informations correspondant au motif puis les affiche
- * La fonction connaît la clé (paramètre)
+ * La fonction connaît la clé (paramètre 1)
+ * La fonction connaît la liste des entrées chiffrées (paramètre 2)
  */
-void do_command_search(uint8_t key[]) {
+void do_command_search(uint8_t key[], DLList list) {
     uint8_t pattern[MAX_SIZE];
 
     /* Obtenir le pattern recherché */
@@ -177,85 +164,273 @@ void do_command_search(uint8_t key[]) {
     getsl((char*)pattern, MAX_SIZE);
 
     /* Lancer la recherche et l'affichage */
-    search_and_print(key, (char*)pattern);
+    search_and_print(key, list, (char*)pattern);
 }
 
 /*
  * Ajoute une nouvelle information secrète
- * La fonction connaît la clé (paramètre)
+ * La fonction connaît la clé (paramètre 1)
+ * La fonction connait la liste actuelle (paramètre 2)
+ * La fonction retourne la liste modifiée
+ * 
  * L'utilisateur saisie une information et le secret associé
  * Ces deux informations sont sauvegardées avec leur IV respectif une fois chiffré
  * On ajoute également une valeur hmac pour plus de sécurité
  */
-void do_command_add(uint8_t key[]) {
-    Entry entry; 
+DLList do_command_add(uint8_t key[], DLList list) {
+    Entry * pentry = malloc(sizeof *pentry);
 
     printf("Information: ");
-    getsl((char*)entry.information, MAX_SIZE);
+    getsl((char*)pentry->information, MAX_SIZE);
 
     printf("Secret: ");
-    getsl((char*)entry.secret, MAX_SIZE);
+    getsl((char*)pentry->secret, MAX_SIZE);
 
     // Construction de text en concaténant les deux chaines
     // text == information | secret
     uint8_t text[MAX_SIZE * 2];
     memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-    concat(text, entry.information);
-    concat(text, entry.secret);
+    concat(text, pentry->information);
+    concat(text, pentry->secret);
 
+    struct AES_ctx ctx;
+
+    // Générer IV pour chiffrer information
+    rng(pentry->iv_info, AES_BLOCKLEN);
+
+    // Chiffrer information
+    AES_init_ctx_iv(&ctx, key, pentry->iv_info);
+    AES_CBC_encrypt_buffer(&ctx, pentry->information, sizeof pentry->information);
+
+    // Générer IV pour secret
+    rng(pentry->iv_sec, sizeof pentry->iv_sec);
+
+    // Chiffrer secret
+    AES_init_ctx_iv(&ctx, key, pentry->iv_sec);
+    AES_CBC_encrypt_buffer(&ctx, pentry->secret, sizeof pentry->secret);
+
+    // Calcul du HMAC sur la chaine text
+    hmac_sha256(text, sizeof text, key, AES_KEYLEN, pentry->hash);
+
+    // Ajouter de l'entrée dans la liste
+    list = addAtLast_DLList(list, pentry);
+
+    return list;
+}
+
+/*
+ * Charge et contrôle les données depuis le fichier dans une liste
+ * La fonction connaît la clé (paramètre 1)
+ * La fonction connait le nom complet du fichier de données (paramètre 2)
+ */
+DLList load_data(uint8_t key[], const char *file_name) {
+    DLList list = NULL;
     int fp;
-    ssize_t nbBytes;
-    int erreur = 0;
     
-    fp = open("./yatpama.data", O_WRONLY);
-
-    if (fp == -1)
-        fp = creat("./yatpama.data", 0600);
+    fp = open(file_name, O_RDONLY);
 
     if (fp != -1) {
+
+        int nblus;
+        int erreur = 0;
+
+        Entry * pentry; // Pointeur sur l'enregistrement
+        
+        uint8_t information[MAX_SIZE];
+        uint8_t secret[MAX_SIZE];
+        uint8_t text[MAX_SIZE * 2];  // Texte à contrôler = information || secret
+        uint8_t hash2[HASH_SIZE];  // Hash de contrôle
+
         struct AES_ctx ctx;
 
-        lseek(fp, 0L, SEEK_END); // Se placer à la fin du fichier
+        do {
+            // Lecture de l'enregistrement
+            pentry = malloc(sizeof *pentry);
+            nblus = read(fp, pentry, sizeof *pentry);
+            erreur = nblus != sizeof *pentry;
 
-        // Générer IV pour chiffrer information
-        rng(entry.iv_info, AES_BLOCKLEN);
+            if (!erreur) {
 
-        // Chiffrer information
-        AES_init_ctx_iv(&ctx, key, entry.iv_info);
-        AES_CBC_encrypt_buffer(&ctx, entry.information, sizeof entry.information);
-	
-        // Générer IV pour secret
-        rng(entry.iv_sec, sizeof entry.iv_sec);
+                // Déchiffrement de information en mémoire
+                memcpy(information, pentry->information, MAX_SIZE);
+                AES_init_ctx_iv(&ctx, key, pentry->iv_info);
+                AES_CBC_decrypt_buffer(&ctx, information, sizeof information);
 
-	    // Chiffrer secret
-        AES_init_ctx_iv(&ctx, key, entry.iv_sec);
-        AES_CBC_encrypt_buffer(&ctx, entry.secret, sizeof entry.secret);
+                // Déchiffrement de secret en mémoire
+                memcpy(secret, pentry->secret, MAX_SIZE);
+                AES_init_ctx_iv(&ctx, key, pentry->iv_sec);
+                AES_CBC_decrypt_buffer(&ctx, secret, sizeof secret);
 
-        // Calcul du HMAC sur la chaine text
-        hmac_sha256(text, sizeof text, key, AES_KEYLEN, entry.hash);
+                // Contrôle du hash
 
-        // Ecriture de la structure dans le fichier
-        nbBytes = write(fp, &entry, sizeof entry);
-        erreur = nbBytes != sizeof entry;
+                // Construction de text (avec concat)
+                memset(text, 0, sizeof text);
+                concat(text, information);
+                concat(text, secret);
 
-        if (erreur) {
-            fprintf(stderr, "Impossible to write in data file!\n");
-            close(fp);
-            exit(1);
-        }
+                // Calcul de hash2
+                hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
+
+                // Comparaison de hash avec hash2 (fonction compare)
+                if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
+                    fprintf(stderr, "\nWrong password or wrong file or data has been corrupted!\n");
+                    close(fp);
+                    exit(1);
+                }
+
+                // Mise à zéro des zones mémoires utilisées
+                memset(text, 0, sizeof text);
+                memset(information, 0, sizeof information);
+                memset(secret, 0, sizeof secret);
+
+                // Ajout des données chiffrées dans la liste
+                list = addAtLast_DLList(list, pentry);
+            }
+
+        } while(!erreur);
+
+        close(fp);
+    } 
+
+    return list;
+}
+
+/**
+ * Sauvegarde une copie du fichier de données existant
+ * Si une copie de sauvegarde existe déjà, elle est écrasée
+ * La fonction connaît le nom complet du fichier de données existant (1er paramètre)
+ */
+void backup_data(const char *file_name) {
+    int fp, bfp;
+    char * backup_file_name;
+
+    // Créer le nom du fichier de backup
+    const char file_ext[] = ".old";
+    backup_file_name = (char*) malloc(strlen(file_name) + strlen(file_ext) + 1);
+    strcpy(backup_file_name, file_name);
+    strcat(backup_file_name, file_ext);
+
+    // Test si une copie existe déjà ou pas
+    if (access(backup_file_name, F_OK) == -1) {
+        // Création d'un nouveau fichier de sauvegarde
+        bfp = creat(backup_file_name, 0600);
+    } else {
+        // Le fichier de sauvegarde existe déjà : on écrase son contenu
+        bfp = open(backup_file_name, O_WRONLY | O_TRUNC);
+    }
+
+    // Copie enregistrement par enregistrement
+    fp = open(file_name, O_RDONLY);
+    if (fp != -1 && bfp != -1) {
+
+        int nblus;
+        int erreur = 0;
+
+        Entry entry; // Un enregistrement
+
+        do {
+            // Lecture de l'enregistrement
+            nblus = read(fp, &entry, sizeof entry);
+            erreur = nblus != sizeof entry;
+
+            if (!erreur) {
+
+                // Ecriture de l'enregistrement dans le backup
+                nblus = write(bfp, &entry, sizeof entry);
+                erreur = nblus != sizeof entry;
+
+                if (erreur) {
+                    fprintf(stderr, "Impossible to write in backup file!\n");
+                    close(fp);
+                    close(bfp);
+                    exit(1);
+                }
+
+            }
+
+        } while(!erreur);
+
+        close(fp);
+        close(bfp);
+
+    } else {
+        fprintf(stderr, "Impossible to create a backup file!\n");
+        if (fp != -1) close(fp);
+        if (bfp != -1) close(fp);
+        exit(1);
+    }
+
+}
+
+/**
+ * Enregistre les données chiffrées dans le fichier
+ * La fonction connait la liste des données (premier paramètre)
+ * La fonction connait le nom complet du fichier de données (second paramètre)
+ * 
+ * On consdidère que la liste n'est pas vide au départ !
+ * Si ce fichier existe déjà, on fait une copie de sauvegarde avant de l'écraser
+ */
+void save_data(DLList list, const char *file_name){
+    int fp;
+    
+    // Test de l'existence du fichier
+    if (access(file_name, F_OK) == -1) {
+        // Création d'un nouveau fichier
+        fp = creat(file_name, 0600);
+    } else {
+        // Faire une copie de sauvegarde si un fichier existe déjà
+        backup_data(file_name);
+
+        // Ouverture en écriture du fichier existant en mode écrasement
+        fp = open(file_name, O_WRONLY | O_TRUNC);
+    }
+
+    // Si un fichier existe on écrit dedans
+    if (fp != -1) {
+
+        do {
+            
+            ssize_t nbBytes;
+            int erreur = 0;
+            Entry * pentry;
+
+            // On prend l'enrée en tête de liste
+            pentry = list->entry;
+
+            // Ecriture de la structure dans le fichier
+            nbBytes = write(fp, pentry, sizeof *pentry);
+            erreur = nbBytes != sizeof *pentry;
+
+            if (erreur) {
+                fprintf(stderr, "Impossible to write in data file!\n");
+                del_DLList(&list);
+                close(fp);
+                exit(1);
+            }
+
+            // Next entry
+            list = next_DLList(list);
+
+        } while(!isEmpty_DLList(list));
 
         close(fp);
 
     } else {
-        fprintf(stderr, "Impossible to open data file!\n");
+        fprintf(stderr, "Impossible to create or open data file!\n");
+        del_DLList(&list);
         exit(1);
     }
 }
 
 int main(int argc, char* argv[]) {
     char command; // La commande en cours
-    uint8_t key[AES_KEYLEN]; // Clé de chiffrement pour AES128
+
     int has_key = 0; // Flag pour indiquer si la clé est connue ou pas
+    uint8_t key[AES_KEYLEN]; // Clé de chiffrement
+
+    DLList list = NULL; // La liste contenant les données chiffrées
+
+    const char file_name[] = "./yatpama.data"; // Le nom et chemin du fichier 
 
     do {
         command = prompt();
@@ -263,7 +438,10 @@ int main(int argc, char* argv[]) {
             case 'k':
                 printf("\nEnter password\n");
                 if (!has_key) {
-                    do_command_key(key);
+                    do_command_key(key); // Saisie le mdp et génère la clé
+                    list = load_data(key, file_name); // Charge et contrôle les données
+                    int nbEntries = size_DLList(list);
+                    if (nbEntries) printf("\nEntries found in a local data file: %i", nbEntries);
                     has_key = 1;
                 } else
                     printf("...but we have already a password!");
@@ -271,21 +449,23 @@ int main(int argc, char* argv[]) {
             case 'p':
                 printf("\nPrint secret information\n");
                 if (has_key)
-                    do_command_print(key);
+                    do_command_print(key, list);
                 else
                     printf("...but we don't have password!\n");
                 break;
             case 's':
                 printf("\nSearch a secret information\n");
                 if (has_key)
-                    do_command_search(key);
+                    do_command_search(key, list);
                 else
                     printf("...but we don't have password!\n");
                 break;
             case 'a':
                 printf("\nAdd a new secret information\n");
-                if (has_key)
-                    do_command_add(key);
+                if (has_key) {
+                    list = do_command_add(key, list);
+                    save_data(list, file_name);
+                }
                 else
                     printf("...but we don't have password!\n");
                 break;
@@ -295,5 +475,6 @@ int main(int argc, char* argv[]) {
         }
     } while (command != 'q');
 
+    del_DLList(&list); // On supprime la liste et son contenu
     memset(key, 0, AES_KEYLEN); // On oublie le master key
 }

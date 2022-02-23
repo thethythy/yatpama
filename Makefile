@@ -8,11 +8,11 @@ TESTDIR      = test
 
 default: all
 
-yatpama.o : yatpama.c $(LIBDIR)/aes.h $(LIBDIR)/crypto.h $(LIBDIR)/hmac_sha256.h $(LIBDIR)/sha256.h $(LIBDIR)/utilities.h
+yatpama.o : yatpama.c $(LIBDIR)/aes.h $(LIBDIR)/crypto.h $(LIBDIR)/hmac_sha256.h $(LIBDIR)/sha256.h $(LIBDIR)/utilities.h $(LIBDIR)/dllist.h
 	echo [CC] $@
 	$(CC) $(CFLAGS) -o $@ $<
 
-yatpama : yatpama.o $(LIBDIR)/aes.o $(LIBDIR)/crypto.o $(LIBDIR)/hmac_sha256.o $(LIBDIR)/sha256.o $(LIBDIR)/utilities.o
+yatpama : yatpama.o $(LIBDIR)/aes.o $(LIBDIR)/crypto.o $(LIBDIR)/hmac_sha256.o $(LIBDIR)/sha256.o $(LIBDIR)/utilities.o $(LIBDIR)/dllist.o
 	echo [LD] $@
 	$(LD) $(LDFLAGS) -o $@ $^
 
@@ -28,7 +28,10 @@ test2_AES128 : $(TESTDIR)/test_AES128.o
 test_AES128 : $(TESTDIR)/test2_AES128.o
 	@( cd test; $(MAKE) test_AES128 )
 
-test : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256
+test_dllist : $(TESTDIR)/test_dllist.o
+	@( cd test; $(MAKE) test_dllist )
+
+test : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist
 
 all : yatpama test
 
@@ -39,4 +42,4 @@ clean :
 
 delete :
 	@echo "Make delete"
-	rm -f yatpama test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256
+	rm -f yatpama test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist

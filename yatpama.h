@@ -8,7 +8,7 @@
 #define PWD_SIZE 12              // Taille minimale du mot de passe
 #define HASH_SIZE 32             // Taille du HMAC (utilise SHA256)
 
-typedef struct {
+typedef struct Entry {
     uint8_t iv_info[AES_BLOCKLEN];
     uint8_t information[MAX_SIZE];
     uint8_t iv_sec[AES_BLOCKLEN];

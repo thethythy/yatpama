@@ -25,7 +25,11 @@ hmac_sha256.o : hmac_sha256.c hmac_sha256.h
 	echo [CC] $@
 	$(CC) $(CFLAGS) -o $@ $<
 
-all : utilities.o crypto.o aes.o sha256.o hmac_sha256.o
+dllist.o : dllist.c dllist.h
+	echo [CC] $@
+	$(CC) $(CFLAGS) -o $@ $<
+
+all : utilities.o crypto.o aes.o sha256.o hmac_sha256.o dllist.o
 
 clean :
 	rm -f *.o

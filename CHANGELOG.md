@@ -1,6 +1,12 @@
 Changelog
 =========
 
+v1.1.0 (2022-02-23)
+-------------------
+
+- A new functionnality: a backup file is created each time the user adds a new entry
+- Better code with a double-linked list
+
 v1.0.1 (2022-01-18)
 -------------------
 
