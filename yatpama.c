@@ -22,14 +22,14 @@ char prompt() {
     int again;
 
     do {
-        printf("\n------------------------------------------------------");
-        printf("\n      yatpama : Yet Another Tiny Password Manager     ");
-        printf("\n------------------------------------------------------");
-        printf("\n   k password | p print | s search | a add | q quit   ");
-        printf("\n------------------------------------------------------");
+        printf("\n----------------------------------------------------------");
+        printf("\n        yatpama : Yet Another Tiny Password Manager       ");
+        printf("\n----------------------------------------------------------");
+        printf("\n k password | p print | s search | a add | d del | q quit ");
+        printf("\n----------------------------------------------------------");
         printf("\nChoose a command: ");
         cmd = getchar();
-        again = cmd != 'k' && cmd != 'p' && cmd != 'a' && cmd != 'q' && cmd != 's'; 
+        again = cmd != 'k' && cmd != 'p' && cmd != 'a' && cmd != 'q' && cmd != 's' && cmd != 'd'; 
     } while (again);
 
     getchar(); // Enlever la touche 'Enter' du buffer du clavier
@@ -61,13 +61,16 @@ void do_command_key(uint8_t key[]) {
 }
 
 /*
- * Affiche les informations secrètes actuellement connues en tenant compte d'un motif
- * Si le motif est NULL alors toutes les infos seront affichées
+ * Affiche les informations secrètes connues suivant un motif ou à une position
+ * Si le motif est NULL alors toutes les entrées seront affichées
+ * Si la position est donnée, seule l'entrée à cette position est affichée
+ * 
  * La fonction connaît la clé (1er paramètre)
  * La fonction connaît la liste des entrées chiffrées (second paramètre)
- * La fonction connait le motif recherché (troisième paramètre)
+ * La fonction connaît le motif recherché (troisième paramètre)
+ * La fonction connaît la position recherchée (quatrième paramètre)
  */
-void search_and_print(uint8_t key[], DLList list, char* pattern) {
+void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
     if (!isEmpty_DLList(list)) {
 
         int erreur = 0;
@@ -118,7 +121,7 @@ void search_and_print(uint8_t key[], DLList list, char* pattern) {
             // Affichage des informations
             nbInfo++; // On incrèmente le numéro de l'entrée
 
-            if (!match1 || !match2) {
+            if ((!pos && (!match1 || !match2)) || (pos && pos == nbInfo)) {
                 printf("\nEntry n°%i:", nbInfo);
                 printf("\n\tInformation: ");
                 printf("\t%s", information);
@@ -135,7 +138,7 @@ void search_and_print(uint8_t key[], DLList list, char* pattern) {
 
         } while(!isEmpty_DLList(list));
 
-        printf("\nNumber of information found: %i\n", nbInfoMatch);
+        if (!pos) printf("\nNumber of information found: %i\n", nbInfoMatch);
 
     } else {
         printf("\nThere is no entry yet!\n");
@@ -148,7 +151,7 @@ void search_and_print(uint8_t key[], DLList list, char* pattern) {
  * La fonction connaît la liste des entrées chiffrées (paramètre 2)
  */
 void do_command_print(uint8_t key[], DLList list) {
-    search_and_print(key, list, NULL);
+    search_and_print(key, list, NULL, 0);
 }
 
 /*
@@ -164,7 +167,7 @@ void do_command_search(uint8_t key[], DLList list) {
     getsl((char*)pattern, MAX_SIZE);
 
     /* Lancer la recherche et l'affichage */
-    search_and_print(key, list, (char*)pattern);
+    search_and_print(key, list, (char*)pattern, 0);
 }
 
 /*
@@ -215,6 +218,57 @@ DLList do_command_add(uint8_t key[], DLList list) {
     // Ajouter de l'entrée dans la liste
     list = addAtLast_DLList(list, pentry);
 
+    return list;
+}
+
+/**
+ * Supprime une information secrète
+ * La fontion connaît la clé (paramaètre 1)
+ * La fonction connaît la liste des données (paramètre 2)
+ * La fonction retourne la liste modifiée
+ * 
+ * L'utilisateur saisie le numéro de l'entrée à supprimer
+ * L'entrée choisie est affichée pour confirmation
+ * L'utilisateur confirme ou pas la suppression
+ */ 
+DLList do_command_delete(uint8_t key[], DLList list) {
+    const int nbChiffre = 4; // 9999 maximum d'entrées
+    int erreur; // Drapeau indicateur d'une erreur
+
+    char cNbEntry[nbChiffre + 1]; // Numéro de l'entrée en chaine
+    int nbEntry; // Numéro de l'entrée en entier
+    
+    // Obtenir et tester le numéro de l'entrée à supprimer
+    printf("Give entry number: ");
+    fgets(cNbEntry, nbChiffre + 1, stdin);
+
+    nbEntry = atoi(cNbEntry);
+    erreur = nbEntry <= 0 || nbEntry > size_DLList(list);
+
+    if (!erreur) {
+        char response[] = "n";
+
+        // Afficher l'entrée à supprimer
+        search_and_print(key, list, NULL, nbEntry);
+
+        // Demander confirmation
+        printf("\nPlease, confirm you want delete this entry [y/n]: ");
+        fgets(response, 2, stdin);
+
+        // Confirmation positive : supppresion de l'entrée de la liste
+        if (response[0] == 'y') {
+            list = del_Element_DLList(list, nbEntry);
+            nbEntry = size_DLList(list);
+            printf("Confirmation: one entry deleted, %d entries left.\n", nbEntry);
+            if (nbEntry > 0)
+                printf("Please take attention: entry numbers left could changed");
+        }
+
+    } else {
+        printf("\nThis entry number does not exist\n");
+    }
+
+    fpurge(stdin);
     return list;
 }
 
@@ -471,6 +525,17 @@ int main(int argc, char* argv[]) {
                 break;
             case 'q':
                 printf("\nGoodbye and good luck!\n");
+                break;
+            case 'd':
+                printf("\nDelete an entry\n");
+                if (has_key) {
+                    int nbEntries = size_DLList(list);
+                    list = do_command_delete(key, list);
+                    if (size_DLList(list) == nbEntries - 1)
+                        save_data(list, file_name);
+                }
+                else
+                    printf("...but we don't have password!\n");
                 break;
         }
     } while (command != 'q');
