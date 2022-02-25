@@ -40,7 +40,7 @@ void del_DLList(DLList *plist);
 DLList addAtLast_DLList(DLList list, Entry * pentry);
 
 // Delete a node and the pointed Entry
-// The second paramter is the position of the node (position 1 is the first node)
+// The second parameter is the position of the node (position 1 is the first node)
 // Return the modified list
 DLList del_Element_DLList(DLList list, int pos);
 

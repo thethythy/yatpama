@@ -54,7 +54,7 @@ DLList addAtLast_DLList(DLList list, Entry * pentry) {
 }
 
 DLList del_Element_DLList(DLList list, int pos) {
-    if (list != NULL || pos <= 0) {
+    if (list != NULL && pos > 0) {
         // If the list has only one element and we want to delete it
         if (pos == 1 && list->next == NULL) {
             del_DLList(&list);
@@ -92,4 +92,3 @@ int size_DLList(DLList list) {
     else
         return 1 + size_DLList(list->next);
 }
-

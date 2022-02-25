@@ -110,7 +110,7 @@ int main(void)
 
     // Try to delete at a wrong position
     pentry1 = malloc(sizeof *pentry1);
-    list = addAtLast_DLList(list, pentry1); // Add a first node
+    list = addAtLast_DLList(NULL, pentry1); // Add a first node
     list = del_Element_DLList(list, 10); // Try to delete this node
 
     error = list == NULL || list->next != NULL || list->entry == NULL;
