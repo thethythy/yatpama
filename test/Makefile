@@ -19,7 +19,7 @@ test2_AES128.o : test2_AES128.c $(LIBDIR)/crypto.h $(LIBDIR)/aes.h $(LIBDIR)/uti
 	echo [CC] $@
 	$(CC) $(CFLAGS) -o  $@ $<
 
-test2_AES128 : test2_AES128.o $(LIBDIR)/crypto.o $(LIBDIR)/aes.o $(LIBDIR)/utilities.o
+test2_AES128 : test2_AES128.o $(LIBDIR)/crypto.o $(LIBDIR)/sha256.o $(LIBDIR)/aes.o $(LIBDIR)/utilities.o
 	echo [LD] $@
 	$(LD) $(LDFLAGS) -o $@ $^
 	mv test2_AES128 ..

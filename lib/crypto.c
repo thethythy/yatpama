@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#include "aes.h"
 #include "crypto.h"
+#include "aes.h"
+#include "sha256.h"
 
 /*
  *  Random Number Generator using /dev/urandom
@@ -33,13 +34,14 @@ void rng(uint8_t *buf, int len) {
 
 /*
  *  Generate a key from a password using AES as entropic generator
- *  AES128 must be defined
+ *  AES256 must be defined
+ *  Warning: length(pwd) >= length(key) 
  */
 void pwdtokey(uint8_t *pwd, int lenpwd, uint8_t *key) {
     uint8_t iv[AES_BLOCKLEN] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
     struct AES_ctx ctx;
 
-    for (int j = 0; j < AES_BLOCKLEN; j++)
+    for (int j = 0; j < AES_KEYLEN; j++)
             key[j] = pwd[j];
 
     for (int i = 0; i < MAX_ROUND_PWDTOKEY; i++) {
@@ -48,7 +50,7 @@ void pwdtokey(uint8_t *pwd, int lenpwd, uint8_t *key) {
 
         iv[i % AES_BLOCKLEN]++; // New IV
 
-        for (int j = 0; j < AES_BLOCKLEN; j++)
+        for (int j = 0; j < AES_KEYLEN; j++)
             key[j] = pwd[j];
     }
 
@@ -92,4 +94,47 @@ void pwdConformity(uint8_t pwd[], int pwdsize) {
         fprintf(stderr, "Password does not conform to password policy!\n");
         exit(1);
     }
+}
+
+/*
+ * Compute the SHA256 value of a file
+ * Filename (first parameter) must be an absolute path
+ * The result is stored in a hash value (second parameter) of 32 bytes length
+ */
+void compute_hash_executable(const char* filename, uint8_t hash[]) {
+    int fp = open(filename, O_RDONLY);
+
+    if (fp != -1) {
+        BYTE bin[256]; // Stocke le contenu du fichier
+        int nblus;
+        
+        // Initialiation de SHA256
+        SHA256_CTX ctx;
+	    sha256_init(&ctx);
+
+        // Lecture du fichier puis hash du contenu
+        do {
+            nblus = read(fp, bin, 256);
+            if (nblus != 0) sha256_compute(&ctx, bin, nblus);
+        } while (nblus != 0);
+
+        // Valeur de hash finale
+	    sha256_final(&ctx);
+	    sha256_convert(&ctx,hash);
+
+    } else {
+        fprintf(stderr, "\nImpossible to open file for computing its hash!");
+        exit(1);
+    }
+}
+
+/*
+ * Do a xor binary operation byte per byte
+ * inout = inout xor in
+ * Parameter 1: intout
+ * Parameter 2: in
+ * Parameter 3 : length (we assume inout and in have same length)
+ */
+void xor_table(uint8_t *inout, uint8_t* in, size_t len) {
+    for (int i = 0; i < len; i++) inout[i] = inout[i] ^ in[i];
 }

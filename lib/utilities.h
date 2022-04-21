@@ -10,4 +10,6 @@ int getsl(char *str, int limit);
 int compare(BYTE tab1[], int len1, BYTE tab2[], int len2);
 void concat(BYTE tab1[], BYTE tab2[]);
 
+void getAbsolutePath(const char * filename, char * argv0, char *path, size_t pathlen);
+
 #endif

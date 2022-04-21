@@ -1,6 +1,14 @@
 Changelog
 =========
 
+v1.3.0 (2022-04-21)
+-------------------
+
+- A new functionality: importation / exportation is available
+- A new security guarantee: the encryption key is linked to the executable
+- A better security: AES256 is now used and replace AES128
+- Minor improvements
+
 v1.2.0 (2022-02-25)
 -------------------
 
