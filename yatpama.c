@@ -184,7 +184,7 @@ void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
 
         do {
             // Déchiffrement en mémoire
-            uncypher_data(key, list->entry, information, secret);
+            uncypher_data(key, list->pdata, information, secret);
 
             // Pattern matching
             int match1 = 0;
@@ -632,7 +632,7 @@ void save_data(DLList list, const char *file_name, uint8_t key[]){
 
             if (!isEmpty_DLList(list)) {
                 // On prend l'entrée en tête de liste
-                pentry = list->entry;
+                pentry = list->pdata;
 
                 // Ecriture de la structure dans le fichier
                 nbBytes = write(fp, pentry, sizeof *pentry);
@@ -689,7 +689,7 @@ void do_command_export(uint8_t key[], DLList list, const char *file_export) {
 
             do {
                 // Déchiffrement en mémoire
-                uncypher_data(key, list->entry, information, secret);
+                uncypher_data(key, list->pdata, information, secret);
 
                 // Ecriture dans le fichier d'exportation de "information"
                 fin = index((const char *)information, '\0');

@@ -1,24 +1,22 @@
 #ifndef _DLLIST_H
 #define _DLLIST_H
 
-#include "../yatpama.h"
-
 /*
  * A double-linked list
  *
- * Each element contain a pointer on a structure Entry, a pointer to the
+ * Each Element contain a pointer on a data, a pointer to the
  * predecessor Element and a pointer to the next Element.
  * 
  * If the pointer to the predecessor Element is NULL, the current Element is the head
  * If the pointer to the next Element is NULL, the current Element is the last node
  */
 
-// A node of the list that contains a pointer on a structure Entry,
+// A node of the list that contains a pointer on a data,
 // a pointer on the predecessor node and a pointer on next node
 typedef struct Element {
     struct Element * prec;
     struct Element * next;
-    Entry * entry;
+    void * pdata;
 } Element;
 
 // The double-linked list type
@@ -37,7 +35,7 @@ void del_DLList(DLList *plist);
 
 // Add a new node at the last position
 // Return the modified list
-DLList addAtLast_DLList(DLList list, Entry * pentry);
+DLList addAtLast_DLList(DLList list, void * pdata);
 
 // Delete a node and the pointed Entry
 // The second parameter is the position of the node (position 1 is the first node)

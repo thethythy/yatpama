@@ -113,7 +113,7 @@ int main(void)
     list = addAtLast_DLList(NULL, pentry1); // Add a first node
     list = del_Element_DLList(list, 10); // Try to delete this node
 
-    error = list == NULL || list->next != NULL || list->entry == NULL;
+    error = list == NULL || list->next != NULL || list->pdata == NULL;
 
     if (error) {
         fprintf(stdout, "Test 9 del_Element_DLList: \tKO\n");
@@ -123,7 +123,7 @@ int main(void)
 
     list = del_Element_DLList(list, 0); // Try to delete this node
 
-    error = list == NULL || list->next != NULL || list->entry == NULL;
+    error = list == NULL || list->next != NULL || list->pdata == NULL;
 
     if (error) {
         fprintf(stdout, "Test 10 del_Element_DLList: \tKO\n");
@@ -133,7 +133,7 @@ int main(void)
 
     list = del_Element_DLList(list, -1); // Try to delete this node
 
-    error = list == NULL || list->next != NULL || list->entry == NULL;
+    error = list == NULL || list->next != NULL || list->pdata == NULL;
 
     if (error) {
         fprintf(stdout, "Test 11 del_Element_DLList: \tKO\n");
@@ -162,7 +162,7 @@ int main(void)
 
     list = del_Element_DLList(list, 2); // Delete this node
 
-    error = list == NULL || list->entry != pentry1 || list->prec != NULL || list->next != NULL;
+    error = list == NULL || list->pdata != pentry1 || list->prec != NULL || list->next != NULL;
 
     if (error) {
         fprintf(stdout, "Test 13 del_Element_DLList: \tKO\n");
@@ -180,7 +180,7 @@ int main(void)
 
     list = del_Element_DLList(list, 2); // Delete the node at position 2
 
-    error = list == NULL || list->entry != pentry1 || list->next->entry != pentry3 || list->next->next != NULL;
+    error = list == NULL || list->pdata != pentry1 || list->next->pdata != pentry3 || list->next->next != NULL;
 
     if (error) {
         fprintf(stdout, "Test 14 del_Element_DLList: \tKO\n");
@@ -192,7 +192,7 @@ int main(void)
 
     list = del_Element_DLList(list, 1); // Delete the node at position 1
 
-    error = list == NULL || list->entry != pentry3 || list->next != NULL || list->prec != NULL;
+    error = list == NULL || list->pdata != pentry3 || list->next != NULL || list->prec != NULL;
 
     if (error) {
         fprintf(stdout, "Test 15 del_Element_DLList: \tKO\n");

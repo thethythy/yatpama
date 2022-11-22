@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "dllist.h"
 
@@ -16,7 +17,7 @@ DLList new_DLList() {
     }
 
     list->prec = list->next = NULL;
-    list->entry = NULL;
+    list->pdata = NULL;
 
     return list;
 }
@@ -25,28 +26,28 @@ void del_DLList(DLList * plist) {
     if (*plist != NULL) {
         DLList temp = (*plist)->next;
         if (temp != NULL) del_DLList(&temp);
-        free((*plist)->entry);
+        free((*plist)->pdata);
         free(*plist);
         *plist = NULL;
     }
 }
 
-DLList addAtLast_DLList(DLList list, Entry * pentry) {
+DLList addAtLast_DLList(DLList list, void * pdata) {
     // If the list is empty
     if (list == NULL) {
         list = new_DLList();
-        list->entry = pentry;
+        list->pdata = pdata;
     }
     else {
         // If the list contain only one node
         if (list->next == NULL) {
             DLList temp = new_DLList();
-            temp->entry = pentry;
+            temp->pdata = pdata;
             temp->prec = list;
             list->next = temp;
         } else {
             // The list has more than one node, go to the next node
-            addAtLast_DLList(list->next, pentry);
+            addAtLast_DLList(list->next, pdata);
         }
     }    
 
@@ -63,8 +64,8 @@ DLList del_Element_DLList(DLList list, int pos) {
             if (pos == 1 && list->next != NULL) {
                 // Delete on place
                 DLList temp = list->next;
-                free(list->entry);
-                list->entry = temp->entry;
+                free(list->pdata);
+                list->pdata = temp->pdata;
                 list->next = temp->next;
                 if (temp->next != NULL) temp->next->prec = list;
                 free(temp);
