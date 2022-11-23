@@ -107,8 +107,8 @@ void cypher_data(uint8_t key[], Entry * pentry) {
     // text == information | secret
     uint8_t text[MAX_SIZE * 2];
     memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-    concat(text, pentry->information);
-    concat(text, pentry->secret);
+    strcat((char*)text, (char*)pentry->information);
+    strcat((char*)text, (char*)pentry->secret);
 
     // Calcul du HMAC sur la chaine text
     hmac_sha256(text, sizeof text, key, AES_KEYLEN, pentry->hash);
@@ -364,8 +364,8 @@ void load_special_entry(int fp, uint8_t key[]) {
 
     // Construction de text en concaténant les deux chaines
     // text == information | secret
-    concat(text, entry.information);
-    concat(text, entry.secret);
+    strcat((char*)text, (char*)entry.information);
+    strcat((char*)text, (char*)entry.secret);
     
     // Calcul du hash de contrôle
     hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
@@ -448,8 +448,8 @@ DLList load_data(uint8_t key[], const char *file_name) {
 
                 // Construction de text (avec concat)
                 memset(text, 0, sizeof text);
-                concat(text, information);
-                concat(text, secret);
+                strcat((char*)text, (char*)information);
+                strcat((char*)text, (char*)secret);
 
                 // Calcul de hash2
                 hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
@@ -576,8 +576,8 @@ void save_special_entry(int fp, uint8_t key[]) {
         // text == information | secret
         uint8_t text[MAX_SIZE * 2];
         memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-        concat(text, entry.information);
-        concat(text, entry.secret);
+        strcat((char*)text, (char*)entry.information);
+        strcat((char*)text, (char*)entry.secret);
         hmac_sha256(text, sizeof text, key, AES_KEYLEN, entry.hash);
     }
 

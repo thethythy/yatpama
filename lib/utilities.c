@@ -18,6 +18,7 @@ void printfh(uint8_t *str, int len) {
 
 /*
  * Get a string of characters with a maximum size equal to limit value.
+ * The carriage return is not include.
  * Return the number of characters read
  */
 int getsl(char *str, int limit) {
@@ -36,19 +37,6 @@ int compare(BYTE tab1[], int len1, BYTE tab2[], int len2) {
     if (len1 != len2) return -1;
     for (int i = 0; i < len1; i++) if (tab1[i] != tab2[i]) return -1;
     return 1;
-}
-
-/*
- * Concaténation de deux tableaux de BYTE
- * Le dernier élément des tableaux doit être '\0'
- * tab1 est concaténer avec tab2 (tab2 mis en fin de tab1)
- * tab1 doit être assez grand pour contenir tab2
- */
-void concat(BYTE tab1[], BYTE tab2[]) {
-    int i, j;
-    for(i = 0; tab1[i] != '\0'; i++);
-    for(j = 0; tab2[j] != '\0'; j++, i++) tab1[i] = tab2[j];
-    tab1[i] = '\0';
 }
 
 /*
