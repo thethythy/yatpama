@@ -98,22 +98,37 @@ void do_command_key(char * argv0, uint8_t key[]) {
 }
 
 /*
+ * Calcul du hmac d'une entrée (couple de chaîne de caractère)
+ * Paramètre 1 : la clé de chiffrement
+ * Paramètre 2 : la première chaine du couple
+ * Paramètre 3 : la seconde chaine du couple
+ * Paramètre 4 : un pointeur sur une zone pour stocker le hash calculé
+ */
+void hmac_data(uint8_t key[], char * information, char * secret, uint8_t * hash) {
+    // Construction de text en concaténant les deux chaines
+    // text == information | secret
+    uint8_t text[MAX_SIZE * 2];
+    memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
+    strcat((char*)text, information);
+    strcat((char*)text, secret);
+
+    // Calcul du HMAC sur la chaine text
+    hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash);
+
+    // Mise à zéro de la zone mémoire text
+    memset(text, 0, sizeof text);
+}
+
+/*
  * Chiffrement d'une entrée
  * Paramètre 1 : la clé de chiffrement
  * Paramètre 2 : l'entrée contenant les deux chaines claires puis chiffrées
  */
 void cypher_data(uint8_t key[], Entry * pentry) {
-    // Construction de text en concaténant les deux chaines
-    // text == information | secret
-    uint8_t text[MAX_SIZE * 2];
-    memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-    strcat((char*)text, (char*)pentry->information);
-    strcat((char*)text, (char*)pentry->secret);
-
-    // Calcul du HMAC sur la chaine text
-    hmac_sha256(text, sizeof text, key, AES_KEYLEN, pentry->hash);
-
     struct AES_ctx ctx;
+
+    // Calcul du HMAC de l'entrée
+    hmac_data(key, (char*)pentry->information, (char*)pentry->secret, pentry->hash);
 
     // Générer IV pour chiffrer information
     rng(pentry->iv_info, AES_BLOCKLEN);
@@ -359,16 +374,9 @@ void load_special_entry(int fp, uint8_t key[]) {
     // Contrôle du hash
 
     uint8_t hash2[HASH_SIZE];  // Hash de contrôle
-    uint8_t text[MAX_SIZE * 2];
-    memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-
-    // Construction de text en concaténant les deux chaines
-    // text == information | secret
-    strcat((char*)text, (char*)entry.information);
-    strcat((char*)text, (char*)entry.secret);
     
     // Calcul du hash de contrôle
-    hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
+    hmac_data(key, (char*)entry.information, (char*)entry.secret, hash2);
 
     // Comparaison du hash
     int erreurHash = 0 != memcmp((const void *)&entry.hash, (const void *)&hash2, sizeof hash2);
@@ -421,7 +429,6 @@ DLList load_data(uint8_t key[], const char *file_name) {
         
         uint8_t information[MAX_SIZE];
         uint8_t secret[MAX_SIZE];
-        uint8_t text[MAX_SIZE * 2];  // Texte à contrôler = information || secret
         uint8_t hash2[HASH_SIZE];  // Hash de contrôle
 
         struct AES_ctx ctx;
@@ -446,13 +453,8 @@ DLList load_data(uint8_t key[], const char *file_name) {
 
                 // Contrôle du hash
 
-                // Construction de text (avec concat)
-                memset(text, 0, sizeof text);
-                strcat((char*)text, (char*)information);
-                strcat((char*)text, (char*)secret);
-
                 // Calcul de hash2
-                hmac_sha256(text, sizeof text, key, AES_KEYLEN, hash2);
+                hmac_data(key, (char*)information, (char*)secret, hash2);
 
                 // Comparaison de hash avec hash2 (fonction compare)
                 if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
@@ -462,7 +464,6 @@ DLList load_data(uint8_t key[], const char *file_name) {
                 }
 
                 // Mise à zéro des zones mémoires utilisées
-                memset(text, 0, sizeof text);
                 memset(information, 0, sizeof information);
                 memset(secret, 0, sizeof secret);
 
@@ -572,13 +573,7 @@ void save_special_entry(int fp, uint8_t key[]) {
 
     // Calcul d'un HMAC
     if (!erreur) {
-        // Construction de text en concaténant les deux chaines
-        // text == information | secret
-        uint8_t text[MAX_SIZE * 2];
-        memset(text, 0, sizeof text); // Mise à zéro de la zone mémoire text
-        strcat((char*)text, (char*)entry.information);
-        strcat((char*)text, (char*)entry.secret);
-        hmac_sha256(text, sizeof text, key, AES_KEYLEN, entry.hash);
+        hmac_data(key, (char*)entry.information, (char*)entry.secret, entry.hash);
     }
 
     // Ecriture de l'enregistrement spéciale
