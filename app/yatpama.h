@@ -2,7 +2,9 @@
 #define _YATPAMA_H_
 
 #include <stdlib.h>
-#include "lib/aes.h"
+#include "../lib/aes.h"
+
+#define EXEC_VERSION "v1.3.0" // La version de l'exécutable
 
 #define MAX_SIZE 16*AES_BLOCKLEN // Taille maximale des informations en octets
 #define PWD_SIZE 12              // Taille minimale du mot de passe
