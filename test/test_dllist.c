@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include "../lib/dllist.h"
-#include "../app/yatpama.h"
+#include "../app/yatpama_shared.h"
 
 int main(void)
 {

@@ -30,14 +30,14 @@ int isEmpty_DLList(DLList list);
 // A this state, the three pointers are NULL 
 DLList new_DLList();
 
-// Delete an entire list; each pointed Entry is also deleted
+// Delete an entire list; each data is also deleted
 void del_DLList(DLList *plist);
 
 // Add a new node at the last position
 // Return the modified list
 DLList addAtLast_DLList(DLList list, void * pdata);
 
-// Delete a node and the pointed Entry
+// Delete a node and the inner data
 // The second parameter is the position of the node (position 1 is the first node)
 // Return the modified list
 DLList del_Element_DLList(DLList list, int pos);

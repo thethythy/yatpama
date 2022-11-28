@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.4.0 (2022-11-28)
+-------------------
+
+- New conception: two threads (one for HMI and one for core functions) and a shared list of commands 
+- The linked list is now generic
+- Minor improvements (code factorization and code suppression)
+
 v1.3.0 (2022-04-21)
 -------------------
 

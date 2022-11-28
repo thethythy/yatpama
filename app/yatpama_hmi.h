@@ -1,6 +1,6 @@
 #ifndef _YATPAMA_HMI_H_
 #define _YATPAMA_HMI_H_
 
-char prompt();
+void * thread_hmi(void * t_arg);
 
 #endif

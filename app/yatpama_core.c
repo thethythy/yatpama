@@ -7,13 +7,11 @@
 #include <sys/param.h>
 #include <sys/time.h>
 
-#include "../lib/aes.h"
 #include "../lib/crypto.h"
-#include "../lib/dllist.h"
 #include "../lib/hmac_sha256.h"
 #include "../lib/utilities.h"
 
-#include "yatpama.h"
+#include "yatpama_shared.h"
 
 /*
  * Calculer la valeur de hachage du fichier exécuté
@@ -316,7 +314,7 @@ DLList do_command_delete(uint8_t key[], DLList list) {
         printf("\nThis entry number does not exist\n");
     }
 
-    fflush(stdin);
+    fpurge(stdin);
     return list;
 }
 
@@ -462,10 +460,9 @@ void backup_data(const char *file_name) {
     char * backup_file_name;
 
     // Créer le nom du fichier de backup
-    const char file_ext[] = ".old";
-    backup_file_name = (char*) malloc(strlen(file_name) + strlen(file_ext) + 1);
+    backup_file_name = (char*) malloc(strlen(file_name) + strlen(FILE_BACKUP_EXT) + 1);
     strcpy(backup_file_name, file_name);
-    strcat(backup_file_name, file_ext);
+    strcat(backup_file_name, FILE_BACKUP_EXT);
 
     // Test si une copie existe déjà ou pas
     if (access(backup_file_name, F_OK) == -1) {
@@ -775,4 +772,119 @@ DLList do_command_import(uint8_t key[], DLList list) {
     }
 
     return list;
+}
+
+/*
+ * Thread de gestion des commandes "métier"
+ * Paramètre 1 : une donnée utilisable par le thread
+ */
+void * thread_core(void * t_arg) {
+    T_Core * pt_core = t_arg;           // L'argument est une structure T_Core
+    T_Shared * pt_sh = pt_core->t_sh;   // Accès à la structure partagée
+
+    int has_key = 0; // Flag pour indiquer si la clé est connue ou pas
+    uint8_t key[AES_KEYLEN]; // Clé de chiffrement
+
+    DLList list = NULL; // La liste contenant les données chiffrées
+
+    int loop_again = 1;
+    while(loop_again) {
+    
+        int core_cmd = 0;
+
+        // Lecture d'une commande éventuelle
+        core_cmd = get_shared_cmd(pt_sh);
+    
+        switch (core_cmd) {
+            case CORE_CMD_KEY:
+                if (!has_key) {
+                    do_command_key(pt_core->exec_name, key); // Saisie le mdp et génère la clé
+                    list = load_data(key, FILE_DATA_NAME); // Charge et contrôle les données
+                    int nbEntries = size_DLList(list);
+                    if (nbEntries) printf("\nEntries found in a local data file: %i", nbEntries);
+                    has_key = 1;
+                } else
+                    printf("...but we have already a password!");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            case CORE_CMD_PRINT:
+                if (has_key)
+                    do_command_print(key, list);
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            case CORE_CMD_ADD:
+                if (has_key) {
+                    list = do_command_add(key, list);
+                    save_data(list, FILE_DATA_NAME, key);
+                }
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            case CORE_CMD_SEARCH:
+                if (has_key)
+                    do_command_search(key, list);
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            case CORE_CMD_DEL:
+                if (has_key) {
+                    int nbEntries = size_DLList(list);
+                    list = do_command_delete(key, list);
+                    if (size_DLList(list) == nbEntries - 1)
+                        save_data(list, FILE_DATA_NAME, key);
+                }
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            case CORE_CMD_EXP:
+                if (has_key)
+                    do_command_export(key, list, FILE_EXPORT_NAME);
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction                
+                break;
+
+            case CORE_CMD_IMP:
+                if (has_key) {
+                    int nbEntries = size_DLList(list);
+                    list = do_command_import(key, list);
+                    if (size_DLList(list) != nbEntries)
+                        save_data(list, FILE_DATA_NAME, key);
+                }
+                else
+                    printf("...but we don't have password!\n");
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction                
+                break;                
+
+            case CORE_CMD_EXIT:
+                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                loop_again = 0; // Fin du thread
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    del_DLList(&list); // On supprime la liste et son contenu
+    memset(key, 0, AES_KEYLEN); // On oublie le master key
+
+    return NULL;
 }
