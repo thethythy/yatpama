@@ -32,7 +32,7 @@ int main(int argc, char * argv[]) {
   pthread_join(t_hmi, NULL);
   pthread_join(t_core, NULL);
 
-  del_DLList(& sh.cmd_list);
+  del_DLList(& sh.cmd_list); // Suppresion de la liste des commandes
 
   return 0;
 }

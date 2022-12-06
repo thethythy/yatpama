@@ -54,6 +54,20 @@ DLList addAtLast_DLList(DLList list, void * pdata) {
     return list;
 }
 
+DLList addAtFirst_DLList(DLList list, void * pdata) {
+    DLList head = new_DLList(); // New head node
+    head->pdata = pdata;
+
+    // If the list is not empty
+    if (list != NULL) {
+        // Add in first place
+        head->next = list;
+        list->prec = head;
+    }
+
+    return head;
+}
+
 DLList del_Element_DLList(DLList list, int pos) {
     if (list != NULL && pos > 0) {
         // If the list has only one element and we want to delete it

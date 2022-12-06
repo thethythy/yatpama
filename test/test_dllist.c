@@ -298,5 +298,45 @@ int main(void)
         fprintf(stdout, "Test 22 size_DLList: \t\tOK\n");
     } 
 
+    // ----------------------------------
+    // Test addAtFirst_DLList
+
+    temp = addAtFirst_DLList(list, NULL); // list is empty
+
+    error = temp == NULL || temp->pdata != NULL || temp->prec != NULL || temp->next != NULL;
+
+    if (error) {
+        fprintf(stdout, "Test 23 addAtFirst_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 23 addAtFirst_DLList: \tOK\n");
+    }
+
+    // ----------------------------------
+    // Test size_DLList
+
+    error = size_DLList(temp) != 1;
+
+    if (error) {
+        fprintf(stdout, "Test 24 size_DLList: \t\tKO\n");
+    } else {
+        fprintf(stdout, "Test 24 size_DLList: \t\tOK\n");
+    }
+
+    // ----------------------------------
+    // Test addAtFirst_DLList
+
+    int * pdata = malloc(sizeof(int));
+    *pdata = 10;
+    list = temp;
+    temp = addAtFirst_DLList(list, pdata); // list contains only one element
+
+    error = temp == NULL || temp->pdata != pdata || temp->prec != NULL || temp->next != list || temp->next->next != NULL;
+
+    if (error) {
+        fprintf(stdout, "Test 25 addAtFirst_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 25 addAtFirst_DLList: \tOK\n");
+    }
+
     return error;
 }

@@ -37,6 +37,10 @@ void del_DLList(DLList *plist);
 // Return the modified list
 DLList addAtLast_DLList(DLList list, void * pdata);
 
+// Add a new node at the first position
+// Return the modified list
+DLList addAtFirst_DLList(DLList list, void * pdata);
+
 // Delete a node and the inner data
 // The second parameter is the position of the node (position 1 is the first node)
 // Return the modified list

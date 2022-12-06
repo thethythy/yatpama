@@ -16,56 +16,49 @@
 /*
  * Calculer la valeur de hachage du fichier exécuté
  * On prends le chemin absolu pour accéder au fichier exécuté
- * Paramètre n°1 : le nom du fichier de la ligne de commande
- * Paramètre n°2 : la valeur de hachage calculée
+ * 
+ * Paramètre 1 : la structure partagée
+ * Paramètre 2 : le nom du fichier de la ligne de commande
+ * Paramètre 3 : la valeur de hachage calculée
  */
-void get_hash_executable(char* argv0, uint8_t hash[]) {
+void get_hash_executable(T_Shared * pt_sh, char * argv0, uint8_t * hash) {
     // Mise à zéro du hash
-    memset(hash, 0, 32);
+    memset(hash, 0, AES_KEYLEN);
 
     // Récupérer le chemin absolu complet de l'executable
     char path[MAXPATHLEN*2];
     *path = '\0';
-    getAbsolutePath("yatpama", argv0, path, sizeof(path));
+    getAbsolutePath(FILE_EXEC_NAME, argv0, path, sizeof(path));
 
     if (*path != '\0') {
         char * canonical_path = realpath(path, NULL);
-        printf("\nReference used: %s\n", canonical_path);
+        char message[MAXPATHLEN*2 + 20];
+        sprintf(message, "\nReference used: %s\n", canonical_path);       
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
         compute_hash_executable(path, hash);
         free(canonical_path);
     } else {
-        fprintf(stderr, "Impossible to get access to the executable file!\n");
-        exit(1);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to get access to the executable file!\n");
     }
 }
 
 /*
- * Saisir le mot de passe pour générer une clé principale pour chiffrer / déchiffrer
+ * Générer une clé principale pour chiffrer / déchiffrer
  * La fonction génère la clé (2ème paramètre) de 32 octets soit 256 bits
+ * 
+ * Paramètre 1 : la structure partagée
+ * Paramètre 2 : le nom de l'exécutable pour lier la clé avec l'exécutable
+ * Paramètre 3 : la clé générée
+ * Paramètre 4 : le mot de passe
  */
-void do_command_key(char * argv0, uint8_t key[]) {
-    uint8_t msecret[256];
-    char enter;
-    int nbChar;
+void generate_key(T_Shared * pt_sh, char * argv0, uint8_t * key, uint8_t * msecret) {
+    pwdConformity(msecret, PWD_SIZE);       // Contrôle de la conformité du mot de passe
+    pwdtokey(msecret, PWD_MAX_SIZE, key);   // Génére une clé à partir du mot de passe
 
-    memset(msecret, 0, 256);
-    printf("Master password: ");
-    nbChar = scanf("%s", msecret);
-
-    if (nbChar != EOF) {
-    	nbChar = scanf("%c", &enter); // Enlever la touche 'Enter' du buffer du clavier
-    	pwdConformity(msecret, PWD_SIZE); // Contrôle de la conformité du mot de passe
-        pwdtokey(msecret, 256, key); // Génére une clé à partir du mot de passe
-    	memset(msecret, 0, 256); // On oublie le mot de passe
-
-        // Génère la clé finale = key_from_pwd xor hash_from_executable
-        BYTE hash[AES_KEYLEN];
-        get_hash_executable(argv0, hash);
-        xor_table(key, hash, AES_KEYLEN);
-    } else {
-        fprintf(stderr, "Impossible to read the password!\n");
-        exit(1);
-    }
+    // Génère la clé finale = key_from_pwd xor hash_from_executable
+    BYTE hash[AES_KEYLEN];
+    get_hash_executable(pt_sh, argv0, hash);
+    xor_table(key, hash, AES_KEYLEN);
 }
 
 /*
@@ -75,7 +68,7 @@ void do_command_key(char * argv0, uint8_t key[]) {
  * Paramètre 3 : la seconde chaine du couple
  * Paramètre 4 : un pointeur sur une zone pour stocker le hash calculé
  */
-void hmac_data(uint8_t key[], char * information, char * secret, uint8_t * hash) {
+void hmac_data(uint8_t * key, char * information, char * secret, uint8_t * hash) {
     // Construction de text en concaténant les deux chaines
     // text == information | secret
     uint8_t text[MAX_SIZE * 2];
@@ -95,7 +88,7 @@ void hmac_data(uint8_t key[], char * information, char * secret, uint8_t * hash)
  * Paramètre 1 : la clé de chiffrement
  * Paramètre 2 : l'entrée contenant les deux chaines claires puis chiffrées
  */
-void cypher_data(uint8_t key[], Entry * pentry) {
+void cypher_data(uint8_t * key, Entry * pentry) {
     struct AES_ctx ctx;
 
     // Calcul du HMAC de l'entrée
@@ -123,7 +116,7 @@ void cypher_data(uint8_t key[], Entry * pentry) {
  * Paramètre 3 : pointeur sur l'information déchiffrée
  * Paramètre 4 : pointeur sur le secret déchiffré
  */
-void uncypher_data(uint8_t key[], Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
+void uncypher_data(uint8_t * key, Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
     struct AES_ctx ctx;
 
     // Déchiffrement de information en mémoire
@@ -138,16 +131,17 @@ void uncypher_data(uint8_t key[], Entry * pentry, uint8_t * pinformation, uint8_
 }
 
 /*
- * Affiche les informations secrètes connues suivant un motif ou à une position
+ * Demande d'afficher les informations secrètes connues suivant un motif ou à une position
  * Si le motif est NULL alors toutes les entrées seront affichées
  * Si la position est donnée, seule l'entrée à cette position est affichée
  * 
- * La fonction connaît la clé (1er paramètre)
- * La fonction connaît la liste des entrées chiffrées (second paramètre)
- * La fonction connaît le motif recherché (troisième paramètre)
- * La fonction connaît la position recherchée (quatrième paramètre)
+ * Paramètre 1 : la structure partagée
+ * Paramètre 2 : la clé
+ * Paramètre 3 : la liste des entrées chiffrées
+ * Paramètre 4 : le motif recherché
+ * Paramètre 5 : la position recherchée
  */
-void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
+void search_and_print(T_Shared * pt_sh, uint8_t * key, DLList list, char * pattern, int pos) {
     if (!isEmpty_DLList(list)) {
 
         int erreur = 0;
@@ -162,9 +156,8 @@ void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
         if (pattern) {
             erreur = regcomp(&reg, pattern, REG_EXTENDED | REG_ICASE | REG_NOSUB);
             if (erreur) {
-                fprintf(stderr, "Wrong search pattern!\n");
-                del_DLList(&list);
-                exit(1);
+                add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "Wrong search pattern!\n");
+                return;
             }
         }
 
@@ -185,11 +178,9 @@ void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
             nbInfo++; // On incrèmente le numéro de l'entrée
 
             if ((!pos && (!match1 || !match2)) || (pos && pos == nbInfo)) {
-                printf("\nEntry n°%i:", nbInfo);
-                printf("\n\tInformation: ");
-                printf("\t%s", information);
-                printf("\n\tSecret: ");
-                printf("\t%s\n", secret);
+                char strNbInfo[5];
+                sprintf(strNbInfo, "%d", nbInfo);
+                add_shared_cmd_3arg(pt_sh, HMI_CMD_SHOW_ENTRY, strNbInfo, (char *)information, (char *)secret);
                 nbInfoMatch++;
             }
 
@@ -201,56 +192,61 @@ void search_and_print(uint8_t key[], DLList list, char* pattern, int pos) {
 
         } while(!isEmpty_DLList(list));
 
-        if (!pos) printf("\nNumber of information found: %i\n", nbInfoMatch);
+        if (!pos) {
+            char message[40];
+            sprintf(message, "\nNumber of information found: %i\n", nbInfoMatch);
+            add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
+        }
 
     } else {
-        printf("\nThere is no entry yet!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "\nThere is no entry yet!\n");
     }
 }
 
 /*
- * Affiche toutes les informations secrètes actuellement connues
- * La fonction connaît la clé (paramètre 1)
- * La fonction connaît la liste des entrées chiffrées (paramètre 2)
+ * Demande d'afficher toutes les informations secrètes actuellement connues
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé
+ * Paramètre 3 : la liste des entrées chiffrées
  */
-void do_command_print(uint8_t key[], DLList list) {
-    search_and_print(key, list, NULL, 0);
+void do_command_print(T_Shared * pt_sh, uint8_t * key, DLList list) {
+    search_and_print(pt_sh, key, list, NULL, 0);
 }
 
 /*
  * Recherche les informations correspondant au motif puis les affiche
- * La fonction connaît la clé (paramètre 1)
- * La fonction connaît la liste des entrées chiffrées (paramètre 2)
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé
+ * Paramètre 3 : la liste des entrées chiffrées
  */
-void do_command_search(uint8_t key[], DLList list) {
-    uint8_t pattern[MAX_SIZE];
+void do_command_search(T_Shared * pt_sh, uint8_t * key, DLList list) {
+    char pattern[MAX_SIZE];
 
-    /* Obtenir le pattern recherché */
-    printf("Pattern: ");
-    getsl((char*)pattern, MAX_SIZE);
+    // Obtenir le pattern recherché
+    get_shared_cmd_1arg(pt_sh, pattern);
 
-    /* Lancer la recherche et l'affichage */
-    search_and_print(key, list, (char*)pattern, 0);
+    // Lancer la recherche et l'affichage
+    search_and_print(pt_sh, key, list, pattern, 0);
 }
 
 /*
  * Ajoute une nouvelle information secrète
- * La fonction connaît la clé (paramètre 1)
- * La fonction connait la liste actuelle (paramètre 2)
- * La fonction retourne la liste modifiée
- * 
- * L'utilisateur saisie une information et le secret associé
+
+ * L'utilisateur a saisi une information et le secret associé
  * Ces deux informations sont sauvegardées avec leur IV respectif une fois chiffré
  * On ajoute également une valeur hmac pour plus de sécurité
+ * 
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé (paramètre 1)
+ * Paramètre 3 : la liste actuelle (paramètre 2)
+ * Paramètre 4 : la liste initiale
+ * Retour : la liste modifiée
  */
-DLList do_command_add(uint8_t key[], DLList list) {
+DLList do_command_add(T_Shared * pt_sh, uint8_t * key, DLList list) {
     Entry * pentry = malloc(sizeof *pentry);
 
-    printf("Information: ");
-    getsl((char*)pentry->information, MAX_SIZE);
-
-    printf("Secret: ");
-    getsl((char*)pentry->secret, MAX_SIZE);
+    get_shared_cmd_1arg(pt_sh, (char *) pentry->information);
+    get_shared_cmd_1arg(pt_sh, (char *) pentry->secret);
 
     // Chiffrement de l'entrée
     cypher_data(key, pentry);
@@ -258,72 +254,76 @@ DLList do_command_add(uint8_t key[], DLList list) {
     // Ajout de l'entrée dans la liste
     list = addAtLast_DLList(list, pentry);
 
-    printf("\nOne entry added\n");
+    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "\nOne entry added\n");
 
     return list;
 }
 
 /**
- * Supprime une information secrète
- * La fontion connaît la clé (paramaètre 1)
- * La fonction connaît la liste des données (paramètre 2)
- * La fonction retourne la liste modifiée
+ * Affiche l'entrée à supprimer 
  * 
- * L'utilisateur saisie le numéro de l'entrée à supprimer
- * L'entrée choisie est affichée pour confirmation
- * L'utilisateur confirme ou pas la suppression
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé
+ * Paramètre 3 : la liste des données
+ * Retour : le numéro de l'entrée à supprimer (ou -1)
  */ 
-DLList do_command_delete(uint8_t key[], DLList list) {
-    const int nbChiffre = 4; // 9999 maximum d'entrées
+int do_command_delete_get_entry(T_Shared * pt_sh, uint8_t * key, DLList list) {
     int erreur; // Drapeau indicateur d'une erreur
-    char * pret; // Pointeur sur valeur retournée par fgets
 
-    char cNbEntry[nbChiffre + 1]; // Numéro de l'entrée en chaine
-    int nbEntry; // Numéro de l'entrée en entier
+    char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Numéro de l'entrée en chaine
+    int nbEntry = - 1; // Numéro de l'entrée en entier
     
-    // Obtenir et tester le numéro de l'entrée à supprimer
-    printf("Give entry number: ");
-    pret = fgets(cNbEntry, nbChiffre + 1, stdin);
-    erreur = pret == NULL;
+    get_shared_cmd_1arg(pt_sh, cNbEntry);
 
+    nbEntry = atoi(cNbEntry);
+    erreur = nbEntry <= 0 || nbEntry > size_DLList(list);
+ 
     if (!erreur) {
-        nbEntry = atoi(cNbEntry);
-        erreur = nbEntry <= 0 || nbEntry > size_DLList(list);
-    }
-
-    if (!erreur) {
-        char response[] = "n";
-
         // Afficher l'entrée à supprimer
-        search_and_print(key, list, NULL, nbEntry);
-
-        // Demander confirmation
-        printf("\nPlease, confirm you want delete this entry [y/n]: ");
-        pret = fgets(response, 2, stdin);
-
-        // Confirmation positive : supppresion de l'entrée de la liste
-        if (pret != NULL && response[0] == 'y') {
-            list = del_Element_DLList(list, nbEntry);
-            nbEntry = size_DLList(list);
-            printf("Confirmation: one entry deleted, %d entries left.\n", nbEntry);
-            if (nbEntry > 0)
-                printf("Please take attention: entry numbers left could changed");
-        }
-
+        search_and_print(pt_sh, key, list, NULL, nbEntry);
     } else {
-        printf("\nThis entry number does not exist\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "\nThis entry number does not exist\n");
+        return -1;
     }
 
-    fpurge(stdin);
+    return nbEntry;
+}
+
+/*
+ * Supprimer une entrée si confirmation positive
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la liste des données chiffrées
+ * Paramètre 3 : le numéro de l'entrée à supprimer
+ * Retour : la liste éventuellement modifiée
+ */
+DLList do_command_delete_exec(T_Shared * pt_sh, DLList list, int nbEntry) {
+    char reponse[2] = "n";
+
+    get_shared_cmd_1arg(pt_sh, reponse);
+    if (reponse[0] == 'y') {
+        list = del_Element_DLList(list, nbEntry);
+        nbEntry = size_DLList(list);
+
+        char message[ALERT_MAX_SIZE];
+        sprintf(message, "Confirmation: one entry deleted, %d entries left.\n", nbEntry);
+        if (nbEntry > 0)
+            strcat(message, "Please take attention: entry numbers left could changed");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
+    }
+
     return list;
 }
 
 /*
  * Chargement et contrôle de l'enregistrement spécial de contrôle de version
- * Paramètre 1 : le numéro de fichier data ouvert
- * Paramètre 2 : la clé principale pour le contrôle du hmac
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : le numéro de fichier data ouvert
+ * Paramètre 3 : la clé principale pour le contrôle du hmac
+ * Retour : code d'erreur (0 = pas de soucis)
  */
-void load_special_entry(int fp, uint8_t key[]) {
+int load_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
     int nblus;
     int erreur = 0;
     Entry entry;
@@ -336,9 +336,9 @@ void load_special_entry(int fp, uint8_t key[]) {
     erreur = nblus != sizeof entry;
 
     if (erreur) {
-        fprintf(stderr, "Impossible to read the special entry from data file!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to read the special entry from data file!\n");
         close(fp);
-        exit(1);
+        return 1;
     }
 
     // ----------------
@@ -359,42 +359,49 @@ void load_special_entry(int fp, uint8_t key[]) {
     // -------------------------
     // Gestion des cas d'erreurs
     if (erreurHash && erreurVersion) {
-        printf("\nA previous version (%s) has been detected for the data file", entry.information);
-        printf("\nThe current version used is %s", EXEC_VERSION);
-        printf("\nSee the procedure at https://github.com/thethythy/yatpama to retrieve data safely\n\n");
+        char message[ALERT_MAX_SIZE];
+        sprintf(message, "\nA previous version (%s) has been detected for the data file\
+                          \nThe current version used is %s\
+                          \nSee the procedure at https://github.com/thethythy/yatpama to retrieve data safely\n\n", 
+                          entry.information, EXEC_VERSION);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, message);
         close(fp);
-        exit(1);
+        return 1;
     }
     else if (erreurHash && !erreurVersion) {
-        fprintf(stderr, "\nWrong password or data file has been corrupted!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "\nWrong password or data file has been corrupted!\n");
         close(fp);
-        exit(1);
+        return 1;
     }
 
     // -------------------------------------
     // Bouclier anti attaque par force brute
     // TODO
 
+    return 0;
 }
 
 /*
  * Charge et contrôle les données depuis le fichier dans une liste
- * La fonction connaît la clé (paramètre 1)
- * La fonction connait le nom complet du fichier de données (paramètre 2)
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé
+ * Paramètre 3 : le nom complet du fichier de données
+ * Retour : la liste des données chiffrées
  */
-DLList load_data(uint8_t key[], const char *file_name) {
+DLList load_data(T_Shared * pt_sh, uint8_t * key, const char * file_name) {
     DLList list = NULL;
     int fp;
+    int erreur = 0;
     
     fp = open(file_name, O_RDONLY);
 
     if (fp != -1) {
 
         // Lecture et contrôle de l'enregistrement spécial
-        load_special_entry(fp, key);
+        erreur = load_special_entry(pt_sh, fp, key);
 
         int nblus;
-        int erreur = 0;
 
         Entry * pentry; // Pointeur sur l'enregistrement
         
@@ -404,45 +411,46 @@ DLList load_data(uint8_t key[], const char *file_name) {
 
         struct AES_ctx ctx;
 
-        do {
-            // Lecture de l'enregistrement
-            pentry = malloc(sizeof *pentry);
-            nblus = read(fp, pentry, sizeof *pentry);
-            erreur = nblus != sizeof *pentry;
+        if (!erreur)
+            do {
+                // Lecture de l'enregistrement
+                pentry = malloc(sizeof *pentry);
+                nblus = read(fp, pentry, sizeof *pentry);
+                erreur = nblus != sizeof *pentry;
 
-            if (!erreur) {
+                if (!erreur) {
 
-                // Déchiffrement de information en mémoire
-                memcpy(information, pentry->information, MAX_SIZE);
-                AES_init_ctx_iv(&ctx, key, pentry->iv_info);
-                AES_CBC_decrypt_buffer(&ctx, information, sizeof information);
+                    // Déchiffrement de information en mémoire
+                    memcpy(information, pentry->information, MAX_SIZE);
+                    AES_init_ctx_iv(&ctx, key, pentry->iv_info);
+                    AES_CBC_decrypt_buffer(&ctx, information, sizeof information);
 
-                // Déchiffrement de secret en mémoire
-                memcpy(secret, pentry->secret, MAX_SIZE);
-                AES_init_ctx_iv(&ctx, key, pentry->iv_sec);
-                AES_CBC_decrypt_buffer(&ctx, secret, sizeof secret);
+                    // Déchiffrement de secret en mémoire
+                    memcpy(secret, pentry->secret, MAX_SIZE);
+                    AES_init_ctx_iv(&ctx, key, pentry->iv_sec);
+                    AES_CBC_decrypt_buffer(&ctx, secret, sizeof secret);
 
-                // Contrôle du hash
+                    // Contrôle du hash
 
-                // Calcul de hash2
-                hmac_data(key, (char*)information, (char*)secret, hash2);
+                    // Calcul de hash2
+                    hmac_data(key, (char*)information, (char*)secret, hash2);
 
-                // Comparaison de hash avec hash2 (fonction compare)
-                if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
-                    fprintf(stderr, "\nWrong password or data file has been corrupted!\n");
-                    close(fp);
-                    exit(1);
+                    // Comparaison de hash avec hash2 (fonction compare)
+                    if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
+                        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "\nWrong password or data file has been corrupted!\n");
+                        close(fp);
+                        return list;
+                    }
+
+                    // Mise à zéro des zones mémoires utilisées
+                    memset(information, 0, sizeof information);
+                    memset(secret, 0, sizeof secret);
+
+                    // Ajout des données chiffrées dans la liste
+                    list = addAtLast_DLList(list, pentry);
                 }
 
-                // Mise à zéro des zones mémoires utilisées
-                memset(information, 0, sizeof information);
-                memset(secret, 0, sizeof secret);
-
-                // Ajout des données chiffrées dans la liste
-                list = addAtLast_DLList(list, pentry);
-            }
-
-        } while(!erreur);
+            } while(!erreur);
 
         close(fp);
     } 
@@ -453,9 +461,12 @@ DLList load_data(uint8_t key[], const char *file_name) {
 /**
  * Sauvegarde une copie du fichier de données existant
  * Si une copie de sauvegarde existe déjà, elle est écrasée
- * La fonction connaît le nom complet du fichier de données existant (1er paramètre)
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : le nom complet du fichier de données existant
+ * Retour : code d'erreur (0 = pas d'erreur)
  */
-void backup_data(const char *file_name) {
+int backup_data(T_Shared * pt_sh, const char * file_name) {
     int fp, bfp;
     char * backup_file_name;
 
@@ -494,10 +505,10 @@ void backup_data(const char *file_name) {
                 erreur = nblus != sizeof entry;
 
                 if (erreur) {
-                    fprintf(stderr, "Impossible to write in backup file!\n");
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to write in backup file!\n");
                     close(fp);
                     close(bfp);
-                    exit(1);
+                    return 1;
                 }
 
             }
@@ -508,20 +519,25 @@ void backup_data(const char *file_name) {
         close(bfp);
 
     } else {
-        fprintf(stderr, "Impossible to create a backup file!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to create a backup file!\n");
         if (fp != -1) close(fp);
         if (bfp != -1) close(fp);
-        exit(1);
+        return 1;
     }
+
+    return 0;
 
 }
 
 /**
  * Construction de l'enregistrement spécial de contrôle de version
- * Paramètre n°1 : fp est le numéro du fichier data ouvert en écriture
- * Paramètre n°2 : la clé pour le calcul du hmac
+ * 
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : fp est le numéro du fichier data ouvert en écriture
+ * Paramètre 3 : la clé pour le calcul du hmac
+ * Retour : code d'erreur (O = pas d'erreur)
  */
-void save_special_entry(int fp, uint8_t key[]) {
+int save_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
     ssize_t nbBytes;
     int erreur = 0; 
     Entry entry;
@@ -553,22 +569,27 @@ void save_special_entry(int fp, uint8_t key[]) {
     }
 
     if (erreur) {
-        fprintf(stderr, "Impossible to create the special entry in data file!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to create the special entry in data file!\n");
         close(fp);
-        exit(1);
+        return 1;
     }
+
+    return 0;
 }
 
 /**
  * Enregistre les données chiffrées dans le fichier
- * La fonction connait la liste des données (premier paramètre)
- * La fonction connait le nom complet du fichier de données (second paramètre)
- * 
  * On consdidère que la liste n'est pas vide au départ !
  * Si ce fichier existe déjà, on fait une copie de sauvegarde avant de l'écraser
+ * 
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la liste des données
+ * Paramètre 3 : le nom complet du fichier de données (second paramètre)
+ * Paramètre 4 : la clé de chiffrement
  */
-void save_data(DLList list, const char *file_name, uint8_t key[]){
-    int fp;
+void save_data(T_Shared * pt_sh, DLList list, const char * file_name, uint8_t * key){
+    int fp = -1;
+    int erreur = 0;
     
     // Test de l'existence du fichier
     if (access(file_name, F_OK) == -1) {
@@ -576,65 +597,66 @@ void save_data(DLList list, const char *file_name, uint8_t key[]){
         fp = creat(file_name, 0600);
     } else {
         // Faire une copie de sauvegarde si un fichier existe déjà
-        backup_data(file_name);
+        erreur = backup_data(pt_sh, file_name);
 
         // Ouverture en écriture du fichier existant en mode écrasement
-        fp = open(file_name, O_WRONLY | O_TRUNC);
+        if (!erreur) fp = open(file_name, O_WRONLY | O_TRUNC);
     }
 
     // Si un fichier existe on écrit dedans
-    if (fp != -1) {
+    if (fp != -1 && !erreur) {
 
         // Construction de l'enregistrement spéciale
-        save_special_entry(fp, key);
+        erreur = save_special_entry(pt_sh, fp, key);
 
         // Ecriture des entrées de la liste
-        do {
+        if (!erreur)
+            do {
 
-            ssize_t nbBytes;
-            int erreur = 0;          
-            Entry * pentry;
+                ssize_t nbBytes;         
+                Entry * pentry;
 
-            if (!isEmpty_DLList(list)) {
-                // On prend l'entrée en tête de liste
-                pentry = list->pdata;
+                if (!isEmpty_DLList(list)) {
+                    // On prend l'entrée en tête de liste
+                    pentry = list->pdata;
 
-                // Ecriture de la structure dans le fichier
-                nbBytes = write(fp, pentry, sizeof *pentry);
-                erreur = nbBytes != sizeof *pentry;
-            }
+                    // Ecriture de la structure dans le fichier
+                    nbBytes = write(fp, pentry, sizeof *pentry);
+                    erreur = nbBytes != sizeof *pentry;
+                }
 
-            if (erreur) {
-                fprintf(stderr, "Impossible to write in data file!\n");
-                del_DLList(&list);
-                close(fp);
-                exit(1);
-            }
+                if (erreur) {
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to write in data file!\n");
+                    break;
+                }
 
-            // Next entry
-            list = next_DLList(list);
+                // Next entry
+                list = next_DLList(list);
 
-        } while(!isEmpty_DLList(list));
+            } while(!isEmpty_DLList(list));
 
         close(fp);
 
     } else {
-        fprintf(stderr, "Impossible to create or open data file!\n");
-        del_DLList(&list);
-        exit(1);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to create or open data file!\n");
     }
 }
 
 /*
  * Exporte les données en clair dans un fichier texte
- * La fonction connait la clé de déchiffrement (premier paramètre)
- * La fonction connait la liste des données chiffrées (second paramètre)
- * La fonction connait le nom du fichier d'exportation (troisième paramètre)
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé de déchiffrement
+ * Paramètre 3 : la liste des données chiffrées
  */
-void do_command_export(uint8_t key[], DLList list, const char *file_export) {
+void do_command_export(T_Shared * pt_sh, uint8_t * key, DLList list) {
     if (!isEmpty_DLList(list)) {
 
+        char file_export[MAXPATHLEN];
         int fp;
+
+        // Obtenir le nom du fichier d'exportation
+        get_shared_cmd_1arg(pt_sh, file_export);
 
         // Création ou ouverture en mode écrasement
         if (access(file_export, F_OK) == -1)
@@ -681,9 +703,11 @@ void do_command_export(uint8_t key[], DLList list, const char *file_export) {
                 }
                 
                 if (error) {
-                    fprintf(stderr, "\nImpossible to write to the exportation file (%s)\n", file_export);
+                    char message[MAXPATHLEN + 50];
+                    sprintf(message, "\nImpossible to write to the exportation file (%s)\n", file_export);
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
                     close(fp);
-                    exit(1);
+                    break;
                 }
 
                 nbEntries++;
@@ -696,39 +720,36 @@ void do_command_export(uint8_t key[], DLList list, const char *file_export) {
 
             } while(!isEmpty_DLList(list));
 
-            printf("\n%d entries has been exported in %s\n", nbEntries, file_export);
-            close(fp);
+            if (!error) {
+                char message[MAXPATHLEN + 50];
+                sprintf(message, "\n%d entries has been exported in %s\n", nbEntries, file_export);
+                add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
+                close(fp);
+            }
 
         } else {
-            fprintf(stderr, "\nImpossible to create or open to the exportation file!\n");
-            exit(1);
+            add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "\nImpossible to create or open the exportation file!\n");
         }
 
     } else
-        printf("\nThere is no entry yet!\n");
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "\nThere is no entry yet!\n");
 }
 
 /*
  * Importe des données depuis un fichier texte
- * La fonction connait la clé de chiffrement (premier paramètre)
- * La fonction connait la liste des données chiffrées (second paramètre)
- * La liste (éventuellement modifiée) est retournée
+ *
+ * Paramètre 1 : la structure partagée 
+ * Paramètre 2 : la clé de chiffrement
+ * Paramètre 3 : la liste des données chiffrées
+ * Retour : la liste éventuellement modifiée
  */
-DLList do_command_import(uint8_t key[], DLList list) {
+DLList do_command_import(T_Shared * pt_sh, uint8_t * key, DLList list) {
     char file_import[MAXPATHLEN];
-    char * pret; // Pointeur sur la valeur de retour de fgets
+    char message[MAXPATHLEN + 50];
     FILE * pf;
 
     // Obtenir le nom du fichier texte à importer
-    printf("\nGive the complete name of the text file to import: ");
-    pret = fgets(file_import, MAXPATHLEN, stdin);
-
-    if (pret == NULL) {
-        fprintf(stderr, "\nImpossible do read standard input stream\n");
-        exit(1);
-    }
-
-    * index(file_import, '\n') = '\0'; // Supprime le '\n'
+    get_shared_cmd_1arg(pt_sh, file_import);
 
     // Ouverture de l'import en mode lecture
     pf = fopen(file_import, "r");
@@ -763,12 +784,42 @@ DLList do_command_import(uint8_t key[], DLList list) {
 
         } while(data);
 
-        printf("\n%d entries imported from %s\n", nbEntries, file_import);
+        sprintf(message, "\n%d entries imported from %s\n", nbEntries, file_import);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
         fclose(pf);
 
     } else {
-        fprintf(stderr, "\nImpossible do open the importation file (%s)\n", file_import);
-        exit(1);
+        sprintf(message, "\nImpossible do open the importation file (%s)\n", file_import);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
+    }
+
+    return list;
+}
+
+/*
+ * Génére la clé puis charge les données existantes en les vérifiant
+ *
+ * Paramètre 1 : la structure partagée
+ * Paramètre 2 : le nom du fichier exécutable
+ * Paramètre 3 : la clé générée
+ * Paramètre 4 : la liste des entrées qui vont être chargées
+ * Retour : la liste des entrées éventuellement modifiées
+ */
+DLList do_command_key(T_Shared * pt_sh, char * exec_name, uint8_t * key, DLList list) {
+    char passwd[PWD_MAX_SIZE];
+
+    get_shared_cmd_1arg(pt_sh, passwd); // Récupère le mdp
+    generate_key(pt_sh, exec_name, key, (uint8_t *)passwd); // Génère la clé
+    memset(passwd, 0, PWD_MAX_SIZE);
+    
+    list = load_data(pt_sh, key, FILE_DATA_NAME); // Charge et contrôle les données
+    
+    // Demande pour afficher un message
+    int nbEntries = size_DLList(list);
+    if (nbEntries) {
+        char message[ALERT_MAX_SIZE];
+        sprintf(message, "\nEntries found in a local data file: %i", nbEntries);
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
     }
 
     return list;
@@ -786,96 +837,116 @@ void * thread_core(void * t_arg) {
     uint8_t key[AES_KEYLEN]; // Clé de chiffrement
 
     DLList list = NULL; // La liste contenant les données chiffrées
+    int nbEntries; // Mémorise la taille de la liste
+    int nbEntry; // Mémorise un numéro d'entrée de la liste
 
     int loop_again = 1;
     while(loop_again) {
     
         int core_cmd = 0;
 
-        // Lecture d'une commande éventuelle
+        // Attente d'une commande
         core_cmd = get_shared_cmd(pt_sh);
     
         switch (core_cmd) {
+
+            // Calcul de la clé et chargement des données existantes
             case CORE_CMD_KEY:
                 if (!has_key) {
-                    do_command_key(pt_core->exec_name, key); // Saisie le mdp et génère la clé
-                    list = load_data(key, FILE_DATA_NAME); // Charge et contrôle les données
-                    int nbEntries = size_DLList(list);
-                    if (nbEntries) printf("\nEntries found in a local data file: %i", nbEntries);
+                    list = do_command_key(pt_sh, pt_core->exec_name, key, list);
                     has_key = 1;
                 } else
-                    printf("...but we have already a password!");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we have already a password!");
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
                 break;
 
+            // Déchiffrement et demande affichage côté HMI
             case CORE_CMD_PRINT:
                 if (has_key)
-                    do_command_print(key, list);
+                    do_command_print(pt_sh, key, list);
                 else
-                    printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!\n");
+                delete_shared_cmd(pt_sh, 0); // Suppression de la commande
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
                 break;
 
+            // Ajout d'une nouvelle entrée
             case CORE_CMD_ADD:
                 if (has_key) {
-                    list = do_command_add(key, list);
-                    save_data(list, FILE_DATA_NAME, key);
+                    list = do_command_add(pt_sh, key, list);
+                    save_data(pt_sh, list, FILE_DATA_NAME, key);
                 }
                 else
-                    printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!\n");
+                delete_shared_cmd(pt_sh, 2); // Suppression de la commande
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
                 break;
 
+            // Filtrage des entrées selon un pattern
             case CORE_CMD_SEARCH:
                 if (has_key)
-                    do_command_search(key, list);
+                    do_command_search(pt_sh, key, list);
                 else
-                    printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!\n");
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
                 break;
 
-            case CORE_CMD_DEL:
-                if (has_key) {
-                    int nbEntries = size_DLList(list);
-                    list = do_command_delete(key, list);
-                    if (size_DLList(list) == nbEntries - 1)
-                        save_data(list, FILE_DATA_NAME, key);
-                }
-                else
-                    printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
-                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
-                break;
-
-            case CORE_CMD_EXP:
+            // Demande de retourner l'entrée à supprimer
+            case CORE_CMD_DEL_P1:
                 if (has_key)
-                    do_command_export(key, list, FILE_EXPORT_NAME);
+                    nbEntry = do_command_delete_get_entry(pt_sh, key, list); // On mémorise le numéro
+                else
+                    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!\n");
+                
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
+                
+                if (has_key && nbEntry > 0)
+                    add_shared_cmd_0arg(pt_sh, HMI_CMD_ASK_YN); // On demande confirmation
+                else
+                    add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            // Suppression d'une entrée
+            case CORE_CMD_DEL_P2:
+                nbEntries = size_DLList(list);
+                list = do_command_delete_exec(pt_sh, list, nbEntry);
+                if (size_DLList(list) == nbEntries - 1)
+                    save_data(pt_sh, list, FILE_DATA_NAME, key);
+                
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
+
+            // Demande d'exportation vers un fichier texte
+            case CORE_CMD_EXP:
+                if (has_key)                
+                    do_command_export(pt_sh, key, list);
                 else
                     printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction                
                 break;
 
+            // Demande d'importation depuis un fichier texte
             case CORE_CMD_IMP:
                 if (has_key) {
                     int nbEntries = size_DLList(list);
-                    list = do_command_import(key, list);
+                    list = do_command_import(pt_sh, key, list);
                     if (size_DLList(list) != nbEntries)
-                        save_data(list, FILE_DATA_NAME, key);
+                        save_data(pt_sh, list, FILE_DATA_NAME, key);
                 }
                 else
                     printf("...but we don't have password!\n");
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
-                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction                
-                break;                
+                delete_shared_cmd(pt_sh, 1); // Suppression de la commande
+                add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // On revient en mode interaction
+                break;
 
+            // Arrêt du thread
             case CORE_CMD_EXIT:
-                delete_shared_cmd_0arg(pt_sh); // Suppression de la commande
-                loop_again = 0; // Fin du thread
+                delete_shared_cmd(pt_sh, 0); // Suppression de la commande
+                loop_again = 0; // Fin de la boucle et donc du thread
                 break;
 
             default:
