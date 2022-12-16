@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v1.5.0 (2022-12-16)
+-------------------
+
+- A better user interface (with the ncurses library)
+
 v1.4.0 (2022-11-28)
 -------------------
 

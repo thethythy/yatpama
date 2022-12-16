@@ -7,25 +7,27 @@
 #include "../lib/aes.h"
 #include "../lib/dllist.h"
 
-#define EXEC_VERSION "v1.4.1" // La version de l'exécutable
+#define EXEC_VERSION "v1.5.0" // The version of the executable
 
-#define FILE_EXEC_NAME "yatpama" // Le nom du fichier exécutable
-#define FILE_DATA_NAME "./yatpama.data" // Le nom et chemin du fichier
-#define FILE_BACKUP_EXT ".old" // Extension du fichier de sauvegarde
+#define FILE_EXEC_NAME "yatpama" // The name of the executable file
+#define FILE_DATA_NAME "./yatpama.data" // The name and path of the data file
+#define FILE_BACKUP_EXT ".old" // Backup File Extension
 
-#define MAX_SIZE 16*AES_BLOCKLEN    // Taille maximale des informations en octets
-#define PWD_SIZE 12                 // Taille minimale du mot de passe
-#define PWD_MAX_SIZE 256            // Taille maximale du mot de passe
-#define ALERT_MAX_SIZE 256          // Taille maximale des messages d'alertes et d'erreur
-#define INFO_MAX_SIZE 256           // Taille maximale des informations saisies
-#define ENTRY_NB_MAX_NB 5           // Taille maximale du nombre de chiffre du numéro d'entrée           
-#define HASH_SIZE 32                // Taille du HMAC (utilise SHA256)
+#define MAX_SIZE 16*AES_BLOCKLEN    // Maximum size of information in bytes
+#define PWD_SIZE 12                 // Minimum password size
+#define PWD_MAX_SIZE 256            // Maximum password size
+#define PROMPT_MAX_SIZE 70          // Maximum prompt size
+#define ALERT_MAX_SIZE 256          // Maximum size of alert and error messages
+#define INFO_MAX_SIZE 256           // Maximum size of information entered
+#define ENTRY_NB_MAX_NB 5           // Maximum number of digit size of the entry number      
+#define HASH_SIZE 32                // HMAC size (uses SHA256)
+#define CMD_NB_MAX_NB 5             // Maximum size of the number of digits in a command
 
 // ---------------------------------------------------------------------------
-// Enregistrement représentant une entrée :
-// - un couple d'informations (champs information et secret)
-// - deux vecteurs d'initialisation pour le couple
-// - un valeur hmac du couple
+// Record representing an entry :
+// - a couple of information (information and secret fields)
+// - two initialization vectors for the couple
+// - a HMAC value of the couple
 
 typedef struct Entry {
     uint8_t iv_info[AES_BLOCKLEN];
@@ -36,24 +38,24 @@ typedef struct Entry {
 } Entry;
 
 // ---------------------------------------------------------------------------
-// Structure de données partagées entre les deux threads
+// Structure of data shared between the two threads
 
 typedef struct T_Shared {
-    DLList cmd_list;            // La liste contenant les commandes
-    pthread_mutex_t mut_list;   // Un sémaphore pour accéder à la liste
-    pthread_cond_t synchro;     // Une synchro pour éviter de boucler à vide
+    DLList cmd_list;            // The list containing the commands
+    pthread_mutex_t mut_list;   // A semaphore to access the list
+    pthread_cond_t synchro;     // A synchro to avoid looping empty
 } T_Shared;
 
 // ---------------------------------------------------------------------------
-// Structure de données propre au thread CORE
+// CORE thread-specific data structure
 
 typedef struct T_Core {
-    T_Shared * t_sh;            // La structure partagée
-    char * exec_name;           // Le nom de l'exécutable
+    T_Shared * t_sh;            // The shared structure of data
+    char * exec_name;           // The name of the executable file
 } T_Core;
 
 // ---------------------------------------------------------------------------
-// Liste des identifiants de commande
+// List of command identifiers
 
 #define HMI_CMD_LOOP_INTER  1
 #define HMI_CMD_SHOW_ENTRY  2
@@ -73,12 +75,12 @@ typedef struct T_Core {
 #define CORE_CMD_EXIT       108
 
 // ---------------------------------------------------------------------------
-// Liste des fonctions communes liées à T_Shared
+// List of common functions related to T_Shared
 
 int get_shared_cmd(T_Shared * pt_sh);
-void get_shared_cmd_1arg(T_Shared *  pt_sh, char * arg);
-void get_shared_cmd_2arg(T_Shared *  pt_sh, char * arg);
-void get_shared_cmd_3arg(T_Shared *  pt_sh, char * arg);
+void get_shared_cmd_1arg(T_Shared *  pt_sh, char * arg, int arg_size);
+void get_shared_cmd_2arg(T_Shared *  pt_sh, char * arg, int arg_size);
+void get_shared_cmd_3arg(T_Shared *  pt_sh, char * arg, int arg_size);
 
 void add_shared_cmd_hpriority(T_Shared * pt_sh, int cmd_value);
 void add_shared_cmd_0arg(T_Shared * pt_sh, int cmd_value);

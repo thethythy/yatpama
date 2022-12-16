@@ -4,7 +4,7 @@
 
 Another password manager in C language because why not ;-)
 
-My objective is to get a simple program able to be compile without extern library link for any POSIX operating system. I will just use the ncurses library in future versions for security reasons and for a better human interface.
+My objective is to get a simple program able to be compile without extern library link for any POSIX operating system. I have just used the ncurses library for security reasons and for a better user interface.
 
 ## Features
 
@@ -33,12 +33,12 @@ Just type `make` and you will obtain an executable named `yatpama` to be placed 
 
 In a terminal and a directory, a user can:
 - Execute `yatpama`
-- Choose a main password at first launch (command `k`)
+- Choose a main password at first launch (command `p`)
 - Add a new entry: a couple of secret information (command `a`)
-- Print current entries (command `p`)
+- List current entries (command `l`)
 - Search and print entries according a pattern (command `s`)
 - Delete an entry (command `d`)
-- Export information to a clear text file (command `e`)
+- Export information to a clear text file (command `x`)
 - Import information from a clear text file (command `i`)
 
 After adding the first entry, the file named `yatpama.data` will be created in the current directory. So, a file `yatpama.data` can exist in each directory if you want with a same or a different main paswword.

@@ -5,7 +5,6 @@
 #include "sha256.h"
 
 void printfh(uint8_t *str, int len);
-int getsl(char *str, int limit);
 
 int compare(BYTE tab1[], int len1, BYTE tab2[], int len2);
 
