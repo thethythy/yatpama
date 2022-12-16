@@ -1,7 +1,7 @@
 CC           = gcc
 LD           = gcc
 CFLAGS       = -Wall -Os -c
-LDFLAGS      = -Wall -Os
+LDFLAGS      = -Wall -Os -lncurses
 LIBDIR		 = ../lib
 
 default : all

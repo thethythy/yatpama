@@ -57,83 +57,87 @@ void pwdtokey(uint8_t *pwd, int lenpwd, uint8_t *key) {
 }
 
 /*
- * Contrôle de la conformité du mot de passe
- * Le mot de passe est stocké dans un tableau
- * Le mot de passe fini par le caractère '\0' 
+ * Control if the password is conformed to the policy : 
+ *     length >= pwdsize, a capital letter at least, a lowercase letter at least and a digit at least
+ * The password (pwd) is a string of characters terminated by the character '\0'
+ * The min length of the password is given (pwdsize)
+ * Return : 0 if OK
  */
-void pwdConformity(uint8_t pwd[], int pwdsize) {
+int pwdConformity(uint8_t pwd[], int pwdsize) {
     int i;
-    int erreur = 0;
+    int error = 0;
     int compteur = 0;
-    char * existeMAJ = NULL;
-    char * existeMIN = NULL;
-    char * existeCHI = NULL;
+    char * existCL = NULL;
+    char * existLL = NULL;
+    char * existDIG = NULL;
 
     for (i = 0; pwd[i] != '\0'; i++, compteur++ );
-    erreur = compteur < pwdsize;
+    error = compteur < pwdsize;
 
-    if (!erreur) {
-        for (i = 0; pwd[i] != '\0' && !existeMAJ; i++)
-            existeMAJ = strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", pwd[i]);
-        erreur = !existeMAJ;
+    if (!error) {
+        for (i = 0; pwd[i] != '\0' && !existCL; i++)
+            existCL = strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", pwd[i]);
+        error = !existCL;
     }
 
-    if (!erreur) {
-        for (i = 0; pwd[i] != '\0' && !existeMIN; i++)
-            existeMIN = strchr("abcdefghijklmnopqrstuvwxyz", pwd[i]);
-        erreur = !existeMIN;
+    if (!error) {
+        for (i = 0; pwd[i] != '\0' && !existLL; i++)
+            existLL = strchr("abcdefghijklmnopqrstuvwxyz", pwd[i]);
+        error = !existLL;
     }
 
-    if (!erreur) {
-        for (i = 0; pwd[i] != '\0' && !existeCHI; i++)
-            existeCHI = strchr("0123456789", pwd[i]);
-        erreur = !existeCHI;
+    if (!error) {
+        for (i = 0; pwd[i] != '\0' && !existDIG; i++)
+            existDIG = strchr("0123456789", pwd[i]);
+        error = !existDIG;
     }
 
-    if (erreur) {
-        fprintf(stderr, "Password does not conform to password policy!\n");
-        exit(1);
-    }
+    return error;
 }
 
 /*
  * Compute the SHA256 value of a file
  * Filename (first parameter) must be an absolute path
  * The result is stored in a hash value (second parameter) of 32 bytes length
+ * Result : 0 if OK
  */
-void compute_hash_executable(const char* filename, uint8_t hash[]) {
+int compute_hash_executable(const char* filename, uint8_t hash[]) {
     int fp = open(filename, O_RDONLY);
 
     if (fp != -1) {
-        BYTE bin[256]; // Stocke le contenu du fichier
+        BYTE bin[256]; // Buffer of file content
         int nblus;
         
-        // Initialiation de SHA256
+        // Initialization of SHA256
         SHA256_CTX ctx;
 	    sha256_init(&ctx);
 
-        // Lecture du fichier puis hash du contenu
+        // Read the file then hash its content
         do {
             nblus = read(fp, bin, 256);
             if (nblus != 0) sha256_compute(&ctx, bin, nblus);
         } while (nblus != 0);
 
-        // Valeur de hash finale
+        // Final hash value
 	    sha256_final(&ctx);
 	    sha256_convert(&ctx,hash);
 
+        // Close the file
+        close(fp);
+
     } else {
-        fprintf(stderr, "\nImpossible to open file for computing its hash!");
-        exit(1);
+        return -1;
     }
+
+    return 0;
 }
 
 /*
  * Do a xor binary operation byte per byte
  * inout = inout xor in
- * Parameter 1: intout
+ * Parameter 1: inout
  * Parameter 2: in
- * Parameter 3 : length (we assume inout and in have same length)
+ * Parameter 3 : length (we assume 'inout' and 'in' have same length)
  */
 void xor_table(uint8_t *inout, uint8_t* in, size_t len) {
     for (int i = 0; i < len; i++) inout[i] = inout[i] ^ in[i];

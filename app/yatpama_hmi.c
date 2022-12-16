@@ -1,3 +1,4 @@
+#include <curses.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
@@ -5,216 +6,389 @@
 #include "yatpama_shared.h"
 #include "../lib/utilities.h"
 
+typedef struct UI_Windows {
+    WINDOW * title_win;     // The title window at the top of the terminal
+    WINDOW * commands_win;  // The command window after the title
+    WINDOW * prompt_win;    // The prompt window just after the command window
+    WINDOW * view_win;      // The main window for displaying entries
+    WINDOW * alert_win;     // The alert window for displaying error messages and alerts
+} UI_Windows ;
+
 /*
- * Interface principale
- * Le programme attend que l'utilisateur utilise une commande connue
+ * Wait that the user chooses a valid command
+ * Paramater 1: the prompt window
  */ 
-char prompt() {
+char prompt(WINDOW * win) {
     char cmd;
     int again;
 
     do {
-        printf("\n---------------------------------------------------------------------------");
-        printf("\n                yatpama : Yet Another Tiny Password Manager                ");
-        printf("\n---------------------------------------------------------------------------");
-        printf("\n k pwd | p print | s search | a add | d del | e export | i import | q quit ");
-        printf("\n---------------------------------------------------------------------------");
-        printf("\nChoose a command: ");
-        cmd = getchar();
-        again = cmd != 'k' && cmd != 'p' && cmd != 'a' && cmd != 'q' &&
-                cmd != 's' && cmd != 'd' && cmd != 'e' && cmd != 'i'; 
-    } while (again);
+        wmove(win, 0, 0);
+        wclrtoeol(win); // Clear line 
 
-    fpurge(stdin); // Enlever la touche 'Enter' du buffer du clavier
+        mvwprintw(win, 0, 0, "Choose a command: "); // Display a prompt
+        wrefresh(win);
+
+        cmd = wgetch(win);
+        again = cmd != 'p' && cmd != 'l' && cmd != 'a' && cmd != 'q' &&
+                cmd != 's' && cmd != 'd' && cmd != 'x' && cmd != 'i';
+
+    } while (again);
 
     return cmd;
 }
 
 /*
- * Saisir une chaine de caractère en claire
- * Paramètre 1 : le message d'attente
- * Paramètre 2 : la chaine saisie
- * Paramètre 3 : la taille maximale de la chaine
+ * Get a string of characters
+ * Parameter 1: the window used to get the string
+ * Parameter 2: the prompt message
+ * Parameter 3: the string
+ * Parameter 4: the max length of the string
  */
-void getAPublicString(char * prompt, char * chaine, int size_max) {
-    memset(chaine, 0, INFO_MAX_SIZE);
-    printf("%s", prompt);
-    getsl(chaine, size_max);
-    fpurge(stdin);
+void getAPublicString(WINDOW * win, char * prompt, char * mesg, int size_max) {
+    memset(mesg, 0, size_max);
+    wmove(win, 0, 0);                   // Go to the beginning
+    wclrtoeol(win);                     // Clear line
+    wprintw(win, "%s", prompt);         // Display the prompt
+    wgetnstr(win, mesg, size_max);    // Get the string
 }
 
 /*
- * Affiche un message d'alerte ou une information utile
- * Paramètre 1 : le message à afficher
+ * Display an alert or a useful information
+ * Parameter 1: the window where displaying
+ * Parameter 2: the message to display
  */
-void putAnAlertMessage(char * chaine) {
-    printf("%s", chaine);
+void displayAnAlertMessage(WINDOW * win, char * message) {
+    wmove(win, 1, 0);
+    wclrtoeol(win); // Clear line 
+    wprintw(win, "%s", message);
+    wrefresh(win);
 }
 
 /*
- * Affiche une entrée en claire
- * Paramètre 1 : le numéro de l'entrée
- * Paramètre 2 : l'information
- * Paramètre 3 : le secret 
+ * Display an entry
+ * Parameter 1: the window for displaying the entry
+ * Parameter 2: the number of the entry
+ * Parameter 3: the field information of the entry
+ * Parameter 4: the field secret of the entry
  */
-void putAnEntry(int nbInfo, char * information, char * secret) {
-    printf("\nEntry n°%i:", nbInfo);
-    printf("\n\tInformation: ");
-    printf("\t%s", information);
-    printf("\n\tSecret: ");
-    printf("\t%s\n", secret);
+void displayAnEntry(WINDOW * win, int nbInfo, char * information, char * secret) {
+    int row, col, y, x;
+    getmaxyx(win, row, col);    // Get the number of rows and columns
+    getyx(win, y, x);           // Get the current position
+
+    if (y >= row - 1 - 3) {
+        wprintw(win, "Enter any key before displaying next entries");
+        wgetch(win);
+        wrefresh(win);
+    }
+
+    wprintw(win, "Entry n°%i:", nbInfo);
+    wprintw(win, "\n Information: ");
+    wprintw(win, "\t%s", information);
+    wprintw(win, "\n Secret: ");
+    wprintw(win, "\t%s\n", secret);
+    wrefresh(win);
 }
 
 /*
- * Boucle d'interaction principale
- * Paramètre 1 : la structure de donnée partagée
+ * Clear the window displaying entries
+ * Parameter 1: the window for displaying the entry 
  */
-void interaction_loop(T_Shared * pt_sh) {
-    char command; // La commande en cours
+void clear_view_window(WINDOW * win) {
+    wclear(win);
+    wrefresh(win);
+}
 
-    command = prompt(); // Saisie d'une commande
+/*
+ * Main interaction loop
+ * Parameter 1: a shared data record
+ * Parameter 2: a record of pointers on windows
+ */
+void interaction_loop(T_Shared * pt_sh, UI_Windows * wins) {
+    char command; // The current command
+
+    command = prompt(wins->prompt_win); // Entering an order
 
     switch (command) {
 
-        // Saisie du mot de passe et génération de la clé
-        case 'k':
-            printf("\nEnter password\n");
-            char msecret[PWD_MAX_SIZE]; // Le mot de passe
-            getAPublicString("Master password: ", msecret, PWD_MAX_SIZE);
-            add_shared_cmd_1arg(pt_sh, CORE_CMD_KEY, msecret); // Demande création de la clé
+        // Entering the password and generating the key
+        case 'p':
+            displayAnAlertMessage(wins->alert_win, "Enter password command");
+            char msecret[PWD_MAX_SIZE]; // The password
+            getAPublicString(wins->prompt_win, "Master password: ", msecret, PWD_MAX_SIZE);
+            add_shared_cmd_1arg(pt_sh, CORE_CMD_KEY, msecret); // Request to create the key
             memset(msecret, 0, PWD_MAX_SIZE);
             break;
 
-        // Affichage des entrées
-        case 'p':
-            printf("\nPrint secret information\n");
-            add_shared_cmd_0arg(pt_sh, CORE_CMD_PRINT); // Demande d'exécution de l'affichage
+        // Displaying entries
+        case 'l':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Print list of entries");
+            add_shared_cmd_0arg(pt_sh, CORE_CMD_PRINT); // Request for the list
             break;
 
-        // Filtrage des entrées
+        // Entries filtering
         case 's':
-            printf("\nSearch a secret information\n");
-            char pattern[MAX_SIZE]; // Le pattern de filtrage
-            getAPublicString("Pattern: ", pattern, MAX_SIZE);
-            add_shared_cmd_1arg(pt_sh, CORE_CMD_SEARCH, pattern); // Demande d'exéction d'une recherche
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Search entries following a pattern");
+            char pattern[MAX_SIZE]; // The filtering pattern
+            getAPublicString(wins->prompt_win, "Pattern: ", pattern, MAX_SIZE);
+            add_shared_cmd_1arg(pt_sh, CORE_CMD_SEARCH, pattern); // Request for search
             break;
 
-        // Ajout d'une nouvelle entrée
+        // Adding a new entry
         case 'a':
-            printf("\nAdd a new secret information\n");
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Add a new secret information");
 
             char information[MAX_SIZE];
-            getAPublicString("Information: ", information, MAX_SIZE);
+            getAPublicString(wins->prompt_win, "Information: ", information, MAX_SIZE);
             
             char secret[MAX_SIZE];
-            getAPublicString("Secret: ", secret, MAX_SIZE);
+            getAPublicString(wins->prompt_win, "Secret: ", secret, MAX_SIZE);
             
-            add_shared_cmd_2arg(pt_sh, CORE_CMD_ADD, information, secret); // Demande d'exécution d'un ajout
+            add_shared_cmd_2arg(pt_sh, CORE_CMD_ADD, information, secret); // Request to add an entry
 
             memset(information, 0, MAX_SIZE);
             memset(secret, 0, MAX_SIZE);
 
             break;
 
-        // Arrêt normal
+        // Normal shutdown
         case 'q':
-            printf("\nGoodbye and good luck!\n");
-            add_shared_cmd_0arg(pt_sh, HMI_CMD_EXIT); // Fin de l'interface
+            add_shared_cmd_0arg(pt_sh, HMI_CMD_EXIT); // End of user interface
             break;
         
-        // Suppression d'une entrée
+        // Removing an entry
         case 'd':
-            printf("\nDelete an entry\n");
-            char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Numéro de l'entrée en chaine
-            getAPublicString("Give entry number: ", cNbEntry, ENTRY_NB_MAX_NB + 1); // Obtenir le numéro de l'entrée à supprimer
-            add_shared_cmd_1arg(pt_sh, CORE_CMD_DEL_P1, cNbEntry); // Demande pour obtenir l'entrée concernée
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Delete an entry");
+            char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Number entry as a string of characters
+            getAPublicString(wins->prompt_win, "Give entry number: ", cNbEntry, ENTRY_NB_MAX_NB + 1); // Get the entry number to remove
+            add_shared_cmd_1arg(pt_sh, CORE_CMD_DEL_P1, cNbEntry); // Request to get the entry concerned
             break;
 
-        // Exportation des entrées
-        case 'e':
-            printf("\nExport entries\n");
+        // Exportation of entries
+        case 'x':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Export entries");
             char file_export[MAXPATHLEN];
-            getAPublicString("\nGive the name of the file to export to: ", file_export, MAXPATHLEN);
-            add_shared_cmd_1arg(pt_sh, CORE_CMD_EXP, file_export); // Demande d'exécution d'une exportation
+            getAPublicString(wins->prompt_win, "Give the name of the file to export to: ", file_export, MAXPATHLEN);
+            add_shared_cmd_1arg(pt_sh, CORE_CMD_EXP, file_export); // Request to execute an exportation
             break;
 
-        // Importation des entrées
+        // Importation of entries
         case 'i':
-            printf("\nImport entries\n");
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Import entries");
             char file_import[MAXPATHLEN];
-            getAPublicString("\nGive the name of the file to import from: ", file_import, MAXPATHLEN);
-            add_shared_cmd_1arg(pt_sh, CORE_CMD_IMP, file_import); // Demande d'exécution d'une importation
+            getAPublicString(wins->prompt_win, "Give the name of the file to import from: ", file_import, MAXPATHLEN);
+            add_shared_cmd_1arg(pt_sh, CORE_CMD_IMP, file_import); // Request to execute an importation
             break;
     }
 }
 
 /*
- * Thread de gestion des commandes HMI
- * Paramètre 1 : une donnée utilisable par le thread
+ * Draw the title window
+ * Parameter 1: the title window pointer
+ */
+void display_title_window(WINDOW * win) {
+    int row, col;
+    getmaxyx(win, row, col);   // Get the number of rows and columns
+
+    wmove(win, 0, (col - 36) / 2);
+    wprintw(win, "          ___   __");
+    wmove(win, 1, (col - 36) / 2);       
+    wprintw(win, "\\ /  /\\    |   |__|  /\\   |\\/|   /\\");
+    wmove(win, 2, (col - 36) / 2);
+    wprintw(win, " |  /  \\   |   |    /  \\  |  |  /  \\");
+
+    char mesg[] = "Yet Another Tiny Password Manager";
+    mvwprintw(win, row - 1, (col - strlen(mesg)) / 2, "%s", mesg);
+    
+    wrefresh(win);
+}
+
+/*
+ * Draw the command-list window
+ * Parameter 1: the command-list window pointer
+ */
+void display_command_window(WINDOW * win) {
+    int row, col;
+    getmaxyx(win, row, col);   // Get the number of rows and columns
+    char mesg[] = "[p]wd [l]ist [s]earch [a]dd [d]el e[x]port [i]mport [q]uit";
+    mvwprintw(win, row - 2, (col - strlen(mesg)) / 2, "%s", mesg);
+    box(win, 0, 0);
+    wrefresh(win);
+}
+
+/* 
+ * Display the prompt window
+ * Parameter 1: the prompt window pointer
+ */
+void display_prompt_window(WINDOW * win) {
+    int row, col;
+    getmaxyx(win, row, col);                    // get the number of rows and columns
+    mvwhline(win, row - 1, 0, ACS_HLINE, col);  // draw a horizontal line at the top
+    wrefresh(win);
+}
+
+/* 
+ * Display the altert window
+ * Parameter 1: the alert window pointer
+ */
+void display_alter_win(WINDOW * win) {
+    int row, col;
+    getmaxyx(win, row, col);                // get the number of rows and columns
+    mvwhline(win, 0, 0, ACS_HLINE, col);    // draw a horizontal line at the bottom
+    wrefresh(win);
+}
+
+#define T_W_H   5
+#define C_W_H   3
+#define P_W_H   2
+#define A_W_H   2
+
+/*
+ * Start and paramaterize the curses mode then draw user interface
+ * Parameter 1: record of the window pointers
+ * Return value: 0 if OK -1 if KO
+ */
+int start_paramaterize_curses(UI_Windows * wins) {
+    initscr();  // Start the curses mode
+
+    // Verify the terminal size
+    if (COLS < 67 || LINES < 17) {
+        endwin(); // Stop the curses mode now !
+        fprintf(stderr, "The terminal size (%dx%d) is too small to start Yatpama!...\n", COLS, LINES);
+        return -1;
+    }
+
+    cbreak();   // Control characters ; Get a char or a string without CR or EOF
+    echo();     // Echoing input characters
+    keypad(stdscr, TRUE);   // Function keys available (F1, ..., UP, ...)
+
+    // Create and draw the title window
+    wins->title_win = newwin(T_W_H, COLS, 0, 0);
+    display_title_window(wins->title_win);
+
+    // Create and draw the command list window
+    wins->commands_win = newwin(C_W_H, COLS, T_W_H, 0);
+    display_command_window(wins->commands_win);
+
+    // Create the prompt window
+    wins->prompt_win = newwin(P_W_H, COLS, T_W_H + C_W_H, 0);
+    display_prompt_window(wins->prompt_win);
+
+    // Create the window of the list of entries
+    int view_win_height = LINES - T_W_H - C_W_H - P_W_H - A_W_H;
+    wins->view_win = newwin(view_win_height, COLS, T_W_H + C_W_H + P_W_H, 0);
+    scrollok(wins->view_win, TRUE);
+    idlok(wins->view_win, TRUE);
+
+    // Create the window for displaying alert messages
+    wins->alert_win = newwin(A_W_H, COLS, T_W_H + C_W_H + P_W_H + view_win_height, 0);
+    display_alter_win(wins->alert_win);
+
+    return 0;
+}
+
+/* 
+ * Stop the curses mode
+ * Parameter 1: record of the window pointers
+ */
+void stop_curses(UI_Windows * wins) {
+    // Free UI windows
+    delwin(wins->title_win);
+    delwin(wins->commands_win);
+    delwin(wins->prompt_win);
+    delwin(wins->view_win);
+    delwin(wins->alert_win);
+
+    endwin();   // Stop the curses mode
+}
+
+/*
+ * HMI command management thread
+ * Parameter 1: a data useful by the thread (a structure T_Shared)
  */
 void * thread_hmi(void * t_arg) {
-    T_Shared * pt_sh = t_arg; // L'argument est une structure T_Shared
+    T_Shared * pt_sh = t_arg; // The argument is a structure T_Shared
+    UI_Windows wins; // Curses windows of the user interface
 
-    char message[ALERT_MAX_SIZE]; // Pour stocker les messages d'alerte et d'erreur
+    char message[ALERT_MAX_SIZE];   // To store alert and error messages
+    char reponse;                   // Store a response y/n
+    char next_command[CMD_NB_MAX_NB]; // Store the next command (as a string)
+    char question[PROMPT_MAX_SIZE]; // Store the prompt
 
-    char nbInfo[ENTRY_NB_MAX_NB];   // Numéro de l'entrée
-    char information[MAX_SIZE];     // Champs information de l'entrée
-    char secret[MAX_SIZE];          // Champs secret de l'entrée
+    char nbInfo[ENTRY_NB_MAX_NB];   // Entry number as a string
+    char information[MAX_SIZE];     // Information field of the entry
+    char secret[MAX_SIZE];          // Secret field of the entry
+
+    // Start and paramaterize the cursus mode then draw user interface
+    if (start_paramaterize_curses(& wins) == -1) {
+        add_shared_cmd_hpriority(pt_sh, CORE_CMD_EXIT); // Priority request to stop CORE thread
+        return NULL;
+    }
 
     int loop_again = 1;
     while(loop_again == 1) {
     
         int hmi_cmd = 0;
 
-        // Lecture d'une commande éventuelle
+        // Reading a possible command
         hmi_cmd = get_shared_cmd(pt_sh);
     
         switch (hmi_cmd) {
 
-            // Attente d'une commande
+            // Wait a new command
             case HMI_CMD_LOOP_INTER:
-                delete_shared_cmd(pt_sh, 0);                // Supprime la commande
-                interaction_loop(pt_sh);                    // Interagit avec l'utilisateur
+                delete_shared_cmd(pt_sh, 0);                // Delete the command
+                interaction_loop(pt_sh, & wins);            // Interact with the user
                 break;
 
-            // Affichage d'une entrée
+            // Displaying an entry
             case HMI_CMD_SHOW_ENTRY:
-                get_shared_cmd_1arg(pt_sh, nbInfo);         // Récupère le numéro de l'entrée
-                get_shared_cmd_2arg(pt_sh, information);    // Récupère l'info
-                get_shared_cmd_3arg(pt_sh, secret);         // Récupère le secret
-                putAnEntry(atoi(nbInfo), information, secret);    // Affiche l'entrée
-                delete_shared_cmd(pt_sh, 3);                // Supprime la commande
+                get_shared_cmd_1arg(pt_sh, nbInfo, ENTRY_NB_MAX_NB);    // Get the entry number
+                get_shared_cmd_2arg(pt_sh, information, MAX_SIZE);      // Get the informatin field
+                get_shared_cmd_3arg(pt_sh, secret, MAX_SIZE);           // Get the secret field
+                displayAnEntry(wins.view_win, atoi(nbInfo), information, secret); // Display the entry
+                delete_shared_cmd(pt_sh, 3);                            // Remove the command
                 break;
 
-            // Demande confirmation
+            // Ask confirmation y/n
             case HMI_CMD_ASK_YN:
-                delete_shared_cmd(pt_sh, 0);                // Supprime la commande
-                char reponse;
-                getAPublicString("\nPlease, confirm you want delete this entry [y/n]: ", &reponse, 2);
-                add_shared_cmd_1arg(pt_sh, CORE_CMD_DEL_P2, &reponse);
+                get_shared_cmd_1arg(pt_sh, next_command, CMD_NB_MAX_NB);    // Get the next command
+                get_shared_cmd_2arg(pt_sh, question, PROMPT_MAX_SIZE);      // Get the question
+                getAPublicString(wins.prompt_win, question, &reponse, 2);   // Get the response
+                delete_shared_cmd(pt_sh, 2);                                // Remove the command
+                add_shared_cmd_1arg(pt_sh, atoi(next_command), &reponse);   // Sends the response and the next command
                 break;
 
-            // Affichage d'un message d'alerte
+            // Display an alert message
             case HMI_CMD_ALERT:
-                get_shared_cmd_1arg(pt_sh, message);        // Récupère le message
-                putAnAlertMessage(message);                 // Affiche le message d'alerte
-                delete_shared_cmd(pt_sh, 1);                // Supprime la commande
+                get_shared_cmd_1arg(pt_sh, message, ALERT_MAX_SIZE);        // Get the message
+                displayAnAlertMessage(wins.alert_win, message);             // Display the alert message
+                delete_shared_cmd(pt_sh, 1);                                // Remove the command
                 break;
         
-            // Arrêt (normal) de l'interface
+            // Interface shutdown (normal)
             case HMI_CMD_EXIT:
-                delete_shared_cmd(pt_sh, 0);                // Supprime la commande
-                add_shared_cmd_0arg(pt_sh, CORE_CMD_EXIT);  // Demande d'arrêt du thread CORE
-                loop_again = 0;                             // Fin du thread HMI
+                delete_shared_cmd(pt_sh, 0);                // Remove the command
+                add_shared_cmd_0arg(pt_sh, CORE_CMD_EXIT);  // Request to stop CORE thread
+                stop_curses(& wins);                        // End of the curses mode
+                loop_again = 0;                             // End of the HMI thread
                 break;
 
-            // Arrêt de l'application sur erreur
+            // Stopping the application on error
             case HMI_CMD_ERROR:
-                get_shared_cmd_1arg(pt_sh, message);        // Récupère le message
-                printf("%s", message);                      // Affiche le message
-                delete_shared_cmd(pt_sh, 1);                // Supprime la commande
-                add_shared_cmd_hpriority(pt_sh, CORE_CMD_EXIT);  // Demande prioritaire d'arrêt du thread CORE
-                loop_again = 0;                             // Fin du thread HMI
+                stop_curses(& wins);                                    // End of the curses mode
+                get_shared_cmd_1arg(pt_sh, message, ALERT_MAX_SIZE);    // Get the message
+                fprintf(stderr, "%s", message);                         // Display the error message
+                delete_shared_cmd(pt_sh, 1);                            // Remove the command
+                add_shared_cmd_hpriority(pt_sh, CORE_CMD_EXIT);         // Priority request to stop CORE thread
+                loop_again = 0;                                         // End of the HMI thread
                 break;
 
             default:

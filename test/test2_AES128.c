@@ -6,7 +6,7 @@
 #include "../lib/aes.h"
 
 int main(int argc, char* argv[]) {
-    uint8_t iv[16]; // Pour AES128, IV de 16 octets
+    uint8_t iv[16]; // For AES128 an IV of 16 bytes
     rng(iv, 16);
     
     printf("IV : ");    

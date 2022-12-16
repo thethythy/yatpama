@@ -10,15 +10,15 @@ void hmac_sha256(BYTE text[], int text_len, BYTE key[], int key_len, BYTE hash[]
 	
 	int i;
 	
-	// Si la clé est plus grande que 64 octets alors key = SHA256(key)
+	// If the key length is more than 64 bytes then the key becomes SHA256(key)
 	if (key_len > 64) {
 		sha256(key, key_len, tk);
 		key = tk;
 		key_len = 32;
 	}
 	
-	// Si la clé est plus petite elle est complétée avec des zéros
-	// et copiées dans k_ipad et k_opad
+	// If the key is smaller it is completed with zeros
+	// and copied in k_ipad and k_opad
 	memset(k_ipad, 0, sizeof k_ipad);
 	memset(k_opad, 0, sizeof k_opad);
 	memcpy(k_ipad, key, key_len);
@@ -29,14 +29,14 @@ void hmac_sha256(BYTE text[], int text_len, BYTE key[], int key_len, BYTE hash[]
 		k_opad[i] ^= 0x5c;
 	}
 	
-	// Empreinte sha256(k_ipad | text)
+	// Footprint sha256(k_ipad | text)
 	sha256_init(&ctx);
 	sha256_compute(&ctx, k_ipad, 64);
 	sha256_compute(&ctx, text, text_len);
 	sha256_final(&ctx);
 	sha256_convert(&ctx, hash);
 	
-	// Empreinte sha256(k_opad | sha256(k_ipad | text))
+	// Footprint sha256(k_opad | sha256(k_ipad | text))
 	sha256_init(&ctx);
 	sha256_compute(&ctx, k_opad, 64);
 	sha256_compute(&ctx, hash, 32);

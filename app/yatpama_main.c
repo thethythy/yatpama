@@ -8,27 +8,27 @@ int main(int argc, char * argv[]) {
   pthread_t t_core;
   pthread_t t_hmi;
 
-  // Structure de données partagée entre les deux threads
+  // Shared data structure between the two threads
   T_Shared sh = {
-    .cmd_list = NULL,                       // Liste des commandes
-    .mut_list = PTHREAD_MUTEX_INITIALIZER,  // Sémaphore d'accès à la liste
-    .synchro = PTHREAD_COND_INITIALIZER     // Synchro pour ne pas boucler sur une liste vide   
+    .cmd_list = NULL,                       // List of commands
+    .mut_list = PTHREAD_MUTEX_INITIALIZER,  // Semaphore for access to the list
+    .synchro = PTHREAD_COND_INITIALIZER     // Sync to avoid looping on an empty list
   };
 
-  // Structure de données propre au thread CORE
+  // CORE thread-specific data structure
   T_Core core = {
-    .t_sh = &sh,          // La structure partagée
-    .exec_name = argv[0]  // Le nom de l'exécutable saisie sur la ligne de commande
+    .t_sh = &sh,          // The shared structure of data
+    .exec_name = argv[0]  // The name of the executable entered on the command line
   };
 
-  // La première commande : lancer une boucle d'interaction côté HMI
+  // The first command: launch an interaction loop on the HMI side
   add_shared_cmd_0arg(&sh, HMI_CMD_LOOP_INTER);
 
-  // Lancement des threads
+  // Launching threads
   pthread_create(&t_core, NULL, thread_core, &core);
   pthread_create(&t_hmi, NULL, thread_hmi, &sh);
 
-  // Attente de la fin des threads
+  // Waiting for threads to end
   pthread_join(t_hmi, NULL);
   pthread_join(t_core, NULL);
 
