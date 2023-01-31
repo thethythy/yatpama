@@ -3,7 +3,7 @@
 
 #include "dllist.h"
 
-int isEmpty_DLList(DLList list) {
+int isEmpty_DLList(const Element * list) {
     return list == NULL ? 1 : 0;
 }
 

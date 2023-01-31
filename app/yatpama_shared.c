@@ -128,7 +128,7 @@ void add_shared_cmd_0arg(T_Shared * pt_sh, int cmd_value) {
  * Parameter 2: the number of the new command
  * Parameter 3: the command argument
  */
-void add_shared_cmd_1arg(T_Shared * pt_sh, int cmd_value, char * arg_value) {
+void add_shared_cmd_1arg(T_Shared * pt_sh, int cmd_value, const char * arg_value) {
     int * cmd = malloc(sizeof(int));
     *cmd = cmd_value;
 
@@ -149,7 +149,7 @@ void add_shared_cmd_1arg(T_Shared * pt_sh, int cmd_value, char * arg_value) {
  * Parameter 3: the 1st command argument
  * Parameter 4: the 2nd command argument
  */
-void add_shared_cmd_2arg(T_Shared * pt_sh, int cmd_value, char * arg1_value, char * arg2_value) {
+void add_shared_cmd_2arg(T_Shared * pt_sh, int cmd_value, const char * arg1_value, const char * arg2_value) {
     int * cmd = malloc(sizeof(int));
     *cmd = cmd_value;
 
@@ -175,7 +175,7 @@ void add_shared_cmd_2arg(T_Shared * pt_sh, int cmd_value, char * arg1_value, cha
  * Paramètre 4 : the 2nd command argument
  * Paramètre 5 : the 3rd command argument
  */
-void add_shared_cmd_3arg(T_Shared * pt_sh, int cmd_value, char * arg1_value, char * arg2_value, char * arg3_value) {
+void add_shared_cmd_3arg(T_Shared * pt_sh, int cmd_value, const char * arg1_value, const char * arg2_value, const char * arg3_value) {
     int * cmd = malloc(sizeof(int));
     *cmd = cmd_value;
 

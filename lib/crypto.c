@@ -63,33 +63,30 @@ void pwdtokey(uint8_t *pwd, int lenpwd, uint8_t *key) {
  * The min length of the password is given (pwdsize)
  * Return : 0 if OK
  */
-int pwdConformity(uint8_t pwd[], int pwdsize) {
+int pwdConformity(const uint8_t pwd[], int pwdsize) {
     int i;
     int error = 0;
     int compteur = 0;
-    char * existCL = NULL;
-    char * existLL = NULL;
-    char * existDIG = NULL;
 
-    for (i = 0; pwd[i] != '\0'; i++, compteur++ );
+    for (i = 0, compteur = 0; pwd[i] != '\0'; i++, compteur++);
     error = compteur < pwdsize;
 
     if (!error) {
-        for (i = 0; pwd[i] != '\0' && !existCL; i++)
-            existCL = strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", pwd[i]);
-        error = !existCL;
+        for (i = 0, compteur = 0; pwd[i] != '\0'; i++)
+            if (strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", pwd[i])) compteur++;
+        error = compteur <= 0;
     }
 
     if (!error) {
-        for (i = 0; pwd[i] != '\0' && !existLL; i++)
-            existLL = strchr("abcdefghijklmnopqrstuvwxyz", pwd[i]);
-        error = !existLL;
+        for (i = 0, compteur = 0; pwd[i] != '\0'; i++)
+            if (strchr("abcdefghijklmnopqrstuvwxyz", pwd[i])) compteur++;
+        error = compteur <= 0;
     }
 
     if (!error) {
-        for (i = 0; pwd[i] != '\0' && !existDIG; i++)
-            existDIG = strchr("0123456789", pwd[i]);
-        error = !existDIG;
+        for (i = 0, compteur = 0; pwd[i] != '\0'; i++)
+            if (strchr("0123456789", pwd[i])) compteur++;
+        error = compteur <= 0;
     }
 
     return error;
@@ -106,7 +103,7 @@ int compute_hash_executable(const char* filename, uint8_t hash[]) {
 
     if (fp != -1) {
         BYTE bin[256]; // Buffer of file content
-        int nblus;
+        long nblus;
         
         // Initialization of SHA256
         SHA256_CTX ctx;
@@ -139,6 +136,6 @@ int compute_hash_executable(const char* filename, uint8_t hash[]) {
  * Parameter 2: in
  * Parameter 3 : length (we assume 'inout' and 'in' have same length)
  */
-void xor_table(uint8_t *inout, uint8_t* in, size_t len) {
+void xor_table(uint8_t *inout, const uint8_t* in, size_t len) {
     for (int i = 0; i < len; i++) inout[i] = inout[i] ^ in[i];
 }

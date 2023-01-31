@@ -24,7 +24,7 @@ typedef struct Element {
 typedef Element * DLList;
 
 // Return 1 if the list is empty otherwise 0
-int isEmpty_DLList(DLList list);
+int isEmpty_DLList(const Element * list);
 
 // Create a new list
 // A this state, the three pointers are NULL 

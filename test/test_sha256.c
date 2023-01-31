@@ -3,10 +3,9 @@
 #include <string.h>
 #include "../lib/sha256.h"
 
-void print_hash(BYTE hash[])
+void print_hash(const BYTE hash[])
 {
-   int idx;
-   for (idx=0; idx < 32; idx++)
+   for (int idx=0; idx < 32; idx++)
       printf("%02x",hash[idx]);
    printf("\n");
 }

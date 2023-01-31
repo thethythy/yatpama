@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include "sha256.h"
 
-void printfh(uint8_t *str, int len);
+void printfh(const uint8_t *str, int len);
 
-int compare(BYTE tab1[], int len1, BYTE tab2[], int len2);
+int compare(const BYTE tab1[], int len1, const BYTE tab2[], int len2);
 
 void getAbsolutePath(const char * filename, char * argv0, char *path, size_t pathlen);
 

@@ -10,7 +10,7 @@
 /*
  * Print a string of hexadecimal values
  */
-void printfh(uint8_t *str, int len) {
+void printfh(const uint8_t *str, int len) {
     for (int i = 0; i < len; ++i)
         printf("%.2x", str[i]);
     printf("\n");
@@ -20,7 +20,7 @@ void printfh(uint8_t *str, int len) {
  * Compare two tables of BYTE
  * Return 1 if they are equal otherwise -1
  */
-int compare(BYTE tab1[], int len1, BYTE tab2[], int len2) {
+int compare(const BYTE tab1[], int len1, const BYTE tab2[], int len2) {
     if (len1 != len2) return -1;
     for (int i = 0; i < len1; i++) if (tab1[i] != tab2[i]) return -1;
     return 1;
@@ -52,15 +52,16 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
     // 3rd case : in the PATH
     else {
         // We retrieve a reference on the PATH
-        char * PATH_ENV = getenv("PATH");
+        const char * PATH_ENV = getenv("PATH");
 
         // Copy of environment variable required because it is modified
-        char path[strlen(PATH_ENV)+1];
+        char * path;
+        path = malloc(sizeof(char) * (strlen(PATH_ENV) + 1));
         strcpy(path, PATH_ENV);
         
         // We walk the PATH path by way
         char * pos_debut = path;
-        char * pos_fin = path;
+        char * pos_fin;
         
         do {
             
@@ -81,6 +82,7 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
             pos_debut = pos_fin + 1;
 
         } while(pos_fin);
-        
+
+        free(path);
     }
 }

@@ -84,9 +84,9 @@ void get_shared_cmd_3arg(T_Shared *  pt_sh, char * arg, int arg_size);
 
 void add_shared_cmd_hpriority(T_Shared * pt_sh, int cmd_value);
 void add_shared_cmd_0arg(T_Shared * pt_sh, int cmd_value);
-void add_shared_cmd_1arg(T_Shared * pt_sh, int cmd_value, char * arg_value);
-void add_shared_cmd_2arg(T_Shared * pt_sh, int cmd_value, char * arg1_value, char * arg2_value);
-void add_shared_cmd_3arg(T_Shared * pt_sh, int cmd_value, char * arg1_value, char * arg2_value, char * arg3_value);
+void add_shared_cmd_1arg(T_Shared * pt_sh, int cmd_value, const char * arg_value);
+void add_shared_cmd_2arg(T_Shared * pt_sh, int cmd_value, const char * arg1_value, const char * arg2_value);
+void add_shared_cmd_3arg(T_Shared * pt_sh, int cmd_value, const char * arg1_value, const char * arg2_value, const char * arg3_value);
 
 void delete_shared_cmd(T_Shared * pt_sh, int nb_arg);
 

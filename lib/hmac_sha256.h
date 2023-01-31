@@ -3,6 +3,6 @@
 
 #include "sha256.h"
 
-void hmac_sha256(BYTE text[], int text_len, BYTE key[], int key_len, BYTE hash[]);
+void hmac_sha256(const BYTE text[], int text_len, const BYTE key[], int key_len, BYTE hash[]);
 
 #endif

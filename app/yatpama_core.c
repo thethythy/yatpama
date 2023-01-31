@@ -85,7 +85,7 @@ int generate_key(T_Shared * pt_sh, char * argv0, uint8_t * key, uint8_t * msecre
  * Parameter 3: the second string of the couple
  * Parameter 4: a pointer to an area to store the calculated hash
  */
-void hmac_data(uint8_t * key, char * information, char * secret, uint8_t * hash) {
+void hmac_data(const uint8_t * key, const char * information, const char * secret, uint8_t * hash) {
     // Text construction by concatenating the two strings
     // text == information | secret
     uint8_t text[MAX_SIZE * 2];
@@ -105,7 +105,7 @@ void hmac_data(uint8_t * key, char * information, char * secret, uint8_t * hash)
  * Parameter 1: the encryption key
  * Parameter 2: the entry containing the two clear strings then encrypted
  */
-void cypher_data(uint8_t * key, Entry * pentry) {
+void cypher_data(const uint8_t * key, Entry * pentry) {
     struct AES_ctx ctx;
 
     // Calculation of the HMAC of the input
@@ -133,7 +133,7 @@ void cypher_data(uint8_t * key, Entry * pentry) {
  * Parameter 3 : pointer on clear information
  * Parameter 4 : pointer on clear secret
  */
-void uncypher_data(uint8_t * key, Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
+void uncypher_data(const uint8_t * key, const Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
     struct AES_ctx ctx;
 
     // In-memory decryption of information field
@@ -158,7 +158,7 @@ void uncypher_data(uint8_t * key, Entry * pentry, uint8_t * pinformation, uint8_
  * Parameter 4: the pattern
  * Parameter 5: the position 
  */
-void search_and_print(T_Shared * pt_sh, uint8_t * key, DLList list, char * pattern, int pos) {
+void search_and_print(T_Shared * pt_sh, const uint8_t * key, DLList list, const char * pattern, int pos) {
     if (!isEmpty_DLList(list)) {
 
         int error = 0;
@@ -226,7 +226,7 @@ void search_and_print(T_Shared * pt_sh, uint8_t * key, DLList list, char * patte
  * Parameter 2: the encryption key
  * Parameter 3: the list of the entries
  */
-void do_command_print(T_Shared * pt_sh, uint8_t * key, DLList list) {
+void do_command_print(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     search_and_print(pt_sh, key, list, NULL, 0);
 }
 
@@ -236,7 +236,7 @@ void do_command_print(T_Shared * pt_sh, uint8_t * key, DLList list) {
  * Parameter 2: the encryption key
  * Parameter 3: the list of the entries
  */
-void do_command_search(T_Shared * pt_sh, uint8_t * key, DLList list) {
+void do_command_search(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     char pattern[MAX_SIZE];
 
     // Retrieve the pattern
@@ -258,7 +258,7 @@ void do_command_search(T_Shared * pt_sh, uint8_t * key, DLList list) {
  * Parameter 3: the list of the entries
  * Return value: the modified list
  */
-DLList do_command_add(T_Shared * pt_sh, uint8_t * key, DLList list) {
+DLList do_command_add(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     Entry * pentry = malloc(sizeof *pentry);
 
     get_shared_cmd_1arg(pt_sh, (char *) pentry->information, MAX_SIZE);
@@ -284,7 +284,7 @@ DLList do_command_add(T_Shared * pt_sh, uint8_t * key, DLList list) {
  * Parameter 3: the list of the entries
  * Return value: the number of the entry to be deleted (or -1)
  */ 
-int do_command_delete_get_entry(T_Shared * pt_sh, uint8_t * key, DLList list) {
+int do_command_delete_get_entry(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     int error; // Indicator flag
 
     char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Entry number as a string
@@ -338,8 +338,8 @@ DLList do_command_delete_exec(T_Shared * pt_sh, DLList list, int nbEntry) {
  * Parameter 3: the master key
  * Return value: error value (0 = OK)
  */
-int load_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
-    int nblus;
+int load_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
+    long nblus;
     int error = 0;
     Entry entry;
 
@@ -404,7 +404,7 @@ int load_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
  * Parameter 3: fullpath name of the data file
  * Return value: the list of the entries
  */
-DLList load_data(T_Shared * pt_sh, uint8_t * key, const char * file_name) {
+DLList load_data(T_Shared * pt_sh, const uint8_t * key, const char * file_name) {
     DLList list = NULL;
     int fp;
     int error = 0;
@@ -416,7 +416,7 @@ DLList load_data(T_Shared * pt_sh, uint8_t * key, const char * file_name) {
         // Reads and controls the special record
         error = load_special_entry(pt_sh, fp, key);
 
-        int nblus;
+        long nblus;
 
         Entry * pentry; // Pointer on an entry
 
@@ -454,6 +454,7 @@ DLList load_data(T_Shared * pt_sh, uint8_t * key, const char * file_name) {
                     if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
                         add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Wrong password or data file has been corrupted!");
                         close(fp);
+                        free(pentry);
                         return list;
                     }
 
@@ -490,11 +491,9 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
     strcpy(backup_file_name, file_name);
     strcat(backup_file_name, FILE_BACKUP_EXT);
 
-    // Test if a copy already exists or not
-    if (access(backup_file_name, F_OK) == -1) {
-        // Create a new backup file
-        bfp = creat(backup_file_name, 0600);
-    } else {
+    // Try to create a new backup file
+    bfp = open(backup_file_name, O_CREAT | O_EXCL | O_WRONLY, 0600);
+    if (bfp == -1) {
         // A backup file already exists: it is overwritten
         bfp = open(backup_file_name, O_WRONLY | O_TRUNC);
     }
@@ -503,7 +502,7 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
     fp = open(file_name, O_RDONLY);
     if (fp != -1 && bfp != -1) {
 
-        int nblus;
+        long nblus;
         int error = 0;
 
         Entry entry; // A record
@@ -522,6 +521,7 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to write in backup file!");
                     close(fp);
                     close(bfp);
+                    free(backup_file_name);
                     return 1;
                 }
 
@@ -536,9 +536,11 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to create a backup file!\n");
         if (fp != -1) close(fp);
         if (bfp != -1) close(fp);
+        free(backup_file_name);
         return 1;
     }
 
+    free(backup_file_name);
     return 0;
 }
 
@@ -550,7 +552,7 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
  * Parameter 3: the master key
  * Return value : error value (0 = OK)
  */
-int save_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
+int save_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
     ssize_t nbBytes;
     int error = 0; 
     Entry entry;
@@ -600,16 +602,14 @@ int save_special_entry(T_Shared * pt_sh, int fp, uint8_t * key) {
  * Parameter 3: the fullpath name the data file
  * Parameter 4: the master key
  */
-void save_data(T_Shared * pt_sh, DLList list, const char * file_name, uint8_t * key) {
+void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const uint8_t * key) {
     int fp = -1;
     int error = 0;
     
-    // The data file exists ?
-    if (access(file_name, F_OK) == -1) {
-        // No: create a new file
-        fp = creat(file_name, 0600);
-    } else {
-        // Yes: do a backup copy
+    // Try to create a new data file
+    fp = open(file_name, O_CREAT | O_EXCL | O_WRONLY, 0600);
+    if (fp == -1) {
+        // A data file already exists: do a backup copy
         error = backup_data(pt_sh, file_name);
 
         // Open the existing file in overwrite mode
@@ -627,7 +627,7 @@ void save_data(T_Shared * pt_sh, DLList list, const char * file_name, uint8_t * 
             do {
 
                 ssize_t nbBytes;         
-                Entry * pentry;
+                const Entry * pentry;
 
                 if (!isEmpty_DLList(list)) {
                     // We get the entry at the head of the list
@@ -661,7 +661,7 @@ void save_data(T_Shared * pt_sh, DLList list, const char * file_name, uint8_t * 
  * Parameter 2: the master key
  * Parameter 3: the list of the entries
  */
-void do_command_export(T_Shared * pt_sh, uint8_t * key, DLList list) {
+void do_command_export(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     if (!isEmpty_DLList(list)) {
 
         char file_export[MAXPATHLEN];
@@ -670,11 +670,9 @@ void do_command_export(T_Shared * pt_sh, uint8_t * key, DLList list) {
         // Get the name of the export file
         get_shared_cmd_1arg(pt_sh, file_export, MAXPATHLEN);
 
-        // Create or open in overwrite mode
-        if (access(file_export, F_OK) == -1)
-            fp = creat(file_export, 0600);
-        else
-            fp = open(file_export, O_WRONLY | O_TRUNC);
+        // Try to create or open in overwrite mode
+        fp = open(file_export, O_CREAT | O_EXCL | O_WRONLY, 0600);
+        if (fp == -1) fp = open(file_export, O_WRONLY | O_TRUNC);
 
         if (fp != -1) {
 
@@ -683,8 +681,8 @@ void do_command_export(T_Shared * pt_sh, uint8_t * key, DLList list) {
             uint8_t information[MAX_SIZE];
             uint8_t secret[MAX_SIZE];
 
-            char * fin; // Position of the end of the string
-            int nbBytes, nbWrote, error;
+            const char * fin; // Position of the end of the string
+            long nbBytes, nbWrote, error;
 
             do {
                 // In-memory decryption
@@ -755,7 +753,7 @@ void do_command_export(T_Shared * pt_sh, uint8_t * key, DLList list) {
  * Parameter 3: the list of the entries
  * Return value: the list modified
  */
-DLList do_command_import(T_Shared * pt_sh, uint8_t * key, DLList list) {
+DLList do_command_import(T_Shared * pt_sh, const uint8_t * key, DLList list) {
     char file_import[MAXPATHLEN];
     char message[MAXPATHLEN + 50];
     FILE * pf;
@@ -769,7 +767,7 @@ DLList do_command_import(T_Shared * pt_sh, uint8_t * key, DLList list) {
     if (pf) {
         Entry * pentry;
         int nbEntries = 0;
-        char * data;
+        const char * data;
 
         do {
             pentry = malloc(sizeof *pentry); // Allocation of the structure
@@ -853,7 +851,7 @@ void * thread_core(void * t_arg) {
 
     DLList list = NULL; // The list containing the encrypted data
     int nbEntries; // Store the size of the list
-    int nbEntry; // Store an entry number of the list
+    int nbEntry = 0; // Store an entry number of the list
 
     int loop_again = 1;
     while(loop_again) {
@@ -951,7 +949,7 @@ void * thread_core(void * t_arg) {
             // Request to import from a text file
             case CORE_CMD_IMP:
                 if (has_key) {
-                    int nbEntries = size_DLList(list);
+                    nbEntries = size_DLList(list);
                     list = do_command_import(pt_sh, key, list);
                     if (size_DLList(list) != nbEntries)
                         save_data(pt_sh, list, FILE_DATA_NAME, key);

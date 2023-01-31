@@ -29,7 +29,7 @@ char prompt(WINDOW * win) {
         mvwprintw(win, 0, 0, "Choose a command: "); // Display a prompt
         wrefresh(win);
 
-        cmd = wgetch(win);
+        cmd = (char)wgetch(win);
         again = cmd != 'p' && cmd != 'l' && cmd != 'a' && cmd != 'q' &&
                 cmd != 's' && cmd != 'd' && cmd != 'x' && cmd != 'i';
 
@@ -186,6 +186,9 @@ void interaction_loop(T_Shared * pt_sh, UI_Windows * wins) {
             getAPublicString(wins->prompt_win, "Give the name of the file to import from: ", file_import, MAXPATHLEN);
             add_shared_cmd_1arg(pt_sh, CORE_CMD_IMP, file_import); // Request to execute an importation
             break;
+
+        default:
+            break;
     }
 }
 
@@ -205,7 +208,7 @@ void display_title_window(WINDOW * win) {
     wprintw(win, " |  /  \\   |   |    /  \\  |  |  /  \\");
 
     char mesg[] = "Yet Another Tiny Password Manager";
-    mvwprintw(win, row - 1, (col - strlen(mesg)) / 2, "%s", mesg);
+    mvwprintw(win, row - 1, (col - (int)strlen(mesg)) / 2, "%s", mesg);
     
     wrefresh(win);
 }
@@ -218,7 +221,7 @@ void display_command_window(WINDOW * win) {
     int row, col;
     getmaxyx(win, row, col);   // Get the number of rows and columns
     char mesg[] = "[p]wd [l]ist [s]earch [a]dd [d]el e[x]port [i]mport [q]uit";
-    mvwprintw(win, row - 2, (col - strlen(mesg)) / 2, "%s", mesg);
+    mvwprintw(win, row - 2, (col - (int)strlen(mesg)) / 2, "%s", mesg);
     box(win, 0, 0);
     wrefresh(win);
 }
@@ -235,10 +238,10 @@ void display_prompt_window(WINDOW * win) {
 }
 
 /* 
- * Display the altert window
+ * Display the alert window
  * Parameter 1: the alert window pointer
  */
-void display_alter_win(WINDOW * win) {
+void display_alert_win(WINDOW * win) {
     int row, col;
     getmaxyx(win, row, col);                // get the number of rows and columns
     mvwhline(win, 0, 0, ACS_HLINE, col);    // draw a horizontal line at the bottom
@@ -289,7 +292,7 @@ int start_paramaterize_curses(UI_Windows * wins) {
 
     // Create the window for displaying alert messages
     wins->alert_win = newwin(A_W_H, COLS, T_W_H + C_W_H + P_W_H + view_win_height, 0);
-    display_alter_win(wins->alert_win);
+    display_alert_win(wins->alert_win);
 
     return 0;
 }

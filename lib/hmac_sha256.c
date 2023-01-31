@@ -1,14 +1,12 @@
 #include <string.h>
 #include "hmac_sha256.h"
 
-void hmac_sha256(BYTE text[], int text_len, BYTE key[], int key_len, BYTE hash[]) {
+void hmac_sha256(const BYTE text[], int text_len, const BYTE key[], int key_len, BYTE hash[]) {
 	SHA256_CTX ctx;
 	
 	BYTE k_ipad[64];
 	BYTE k_opad[64];
 	BYTE tk[32];
-	
-	int i;
 	
 	// If the key length is more than 64 bytes then the key becomes SHA256(key)
 	if (key_len > 64) {
@@ -24,19 +22,19 @@ void hmac_sha256(BYTE text[], int text_len, BYTE key[], int key_len, BYTE hash[]
 	memcpy(k_ipad, key, key_len);
 	memcpy(k_opad, key, key_len);
 	
-	for (i=0; i < 64; i++) {
+	for (int i=0; i < 64; i++) {
 		k_ipad[i] ^= 0x36;
 		k_opad[i] ^= 0x5c;
 	}
 	
-	// Footprint sha256(k_ipad | text)
+	// Footprint fp1: sha256(k_ipad | text)
 	sha256_init(&ctx);
 	sha256_compute(&ctx, k_ipad, 64);
 	sha256_compute(&ctx, text, text_len);
 	sha256_final(&ctx);
 	sha256_convert(&ctx, hash);
 	
-	// Footprint sha256(k_opad | sha256(k_ipad | text))
+	// Final footprint: sha256(k_opad | fp1)
 	sha256_init(&ctx);
 	sha256_compute(&ctx, k_opad, 64);
 	sha256_compute(&ctx, hash, 32);
