@@ -1,7 +1,7 @@
 CC           = gcc
 LD           = gcc
 CFLAGS       = -Wall -Os -c
-LDFLAGS      = -Wall -Os -lncurses
+LDFLAGS      = -Wall -Os
 LIBDIR		 = ../lib
 
 default : all
@@ -24,7 +24,7 @@ yatpama_main.o : yatpama_main.c yatpama_hmi.h yatpama_core.h yatpama_shared.h $(
 
 yatpama : yatpama_shared.o yatpama_core.o yatpama_hmi.o yatpama_main.o $(LIBDIR)/aes.o $(LIBDIR)/crypto.o $(LIBDIR)/hmac_sha256.o $(LIBDIR)/sha256.o $(LIBDIR)/utilities.o $(LIBDIR)/dllist.o
 	@(echo [LD] $@)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^ -lncurses -lcurses -lpthread -pthread
 	mv yatpama ..
 
 all : yatpama
