@@ -17,7 +17,7 @@
 #define PWD_SIZE 12                 // Minimum password size
 #define PWD_MAX_SIZE 256            // Maximum password size
 #define PROMPT_MAX_SIZE 70          // Maximum prompt size
-#define ALERT_MAX_SIZE 256          // Maximum size of alert and error messages
+#define ALERT_MAX_SIZE 1024         // Maximum size of alert and error messages
 #define INFO_MAX_SIZE 256           // Maximum size of information entered
 #define ENTRY_NB_MAX_NB 5           // Maximum number of digit size of the entry number      
 #define HASH_SIZE 32                // HMAC size (uses SHA256)

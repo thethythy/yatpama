@@ -464,6 +464,8 @@ DLList load_data(T_Shared * pt_sh, const uint8_t * key, const char * file_name) 
 
                     // Add the entry into the list
                     list = addAtLast_DLList(list, pentry);
+                } else {
+                    free(pentry);  // TODO
                 }
 
             } while(!error);

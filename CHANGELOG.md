@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v1.5.1 (2022-??-??)
+-------------------
+
+- Some corrections and changes suggested by sonar-lint tool and valgrind tool
+
 v1.5.0 (2022-12-16)
 -------------------
 
