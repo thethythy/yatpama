@@ -1,10 +1,13 @@
 Changelog
 =========
 
-v1.5.1 (2022-??-??)
+v1.6.0 (2024-07-??)
 -------------------
 
-- Some corrections and changes suggested by sonar-lint tool and valgrind tool
+- Some corrections and changes suggested by sonar-lint and valgrind tools
+- After deleteting an entry, the main window is also clear
+- Now, when typing the main password, characters are masked one by one
+- The screen is lock after 15 s. elapsed without a new command has been typed
 
 v1.5.0 (2022-12-16)
 -------------------

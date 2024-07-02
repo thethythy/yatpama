@@ -7,7 +7,9 @@
 #include "../lib/aes.h"
 #include "../lib/dllist.h"
 
-#define EXEC_VERSION "v1.5.0" // The version of the executable
+#define EXEC_VERSION "v1.6.0" // The version of the executable
+
+#define TIMEOUT_LOCK 15 // Timeout in seconds before locking the terminal
 
 #define FILE_EXEC_NAME "yatpama" // The name of the executable file
 #define FILE_DATA_NAME "./yatpama.data" // The name and path of the data file
@@ -19,7 +21,7 @@
 #define PROMPT_MAX_SIZE 70          // Maximum prompt size
 #define ALERT_MAX_SIZE 1024         // Maximum size of alert and error messages
 #define INFO_MAX_SIZE 256           // Maximum size of information entered
-#define ENTRY_NB_MAX_NB 5           // Maximum number of digit size of the entry number      
+#define ENTRY_NB_MAX_NB 10          // Maximum number of digit size of the entry number      
 #define HASH_SIZE 32                // HMAC size (uses SHA256)
 #define CMD_NB_MAX_NB 5             // Maximum size of the number of digits in a command
 
@@ -57,12 +59,14 @@ typedef struct T_Core {
 // ---------------------------------------------------------------------------
 // List of command identifiers
 
-#define HMI_CMD_LOOP_INTER  1
-#define HMI_CMD_SHOW_ENTRY  2
-#define HMI_CMD_ASK_YN      3
-#define HMI_CMD_ALERT       4
-#define HMI_CMD_EXIT        5
-#define HMI_CMD_ERROR       6
+#define HMI_CMD_LOOP_INTER      1
+#define HMI_CMD_SHOW_ENTRY      2
+#define HMI_CMD_CLEAR_WINDOW    3
+#define HMI_CMD_ASK_YN          4
+#define HMI_CMD_CONNECTED       5
+#define HMI_CMD_ALERT           6
+#define HMI_CMD_EXIT            7
+#define HMI_CMD_ERROR           8
 
 #define CORE_CMD_KEY        100
 #define CORE_CMD_PRINT      101
