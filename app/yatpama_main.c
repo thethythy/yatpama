@@ -11,7 +11,7 @@ int main(int argc, char * argv[]) {
   // Shared data structure between the two threads
   T_Shared sh = {
     .cmd_list = NULL,                       // List of commands
-    .mut_list = PTHREAD_MUTEX_INITIALIZER,  // Semaphore for access to the list
+    .mut_list = PTHREAD_MUTEX_INITIALIZER,  // Semaphore to access to the list
     .synchro = PTHREAD_COND_INITIALIZER     // Sync to avoid looping on an empty list
   };
 
@@ -32,7 +32,7 @@ int main(int argc, char * argv[]) {
   pthread_join(t_hmi, NULL);
   pthread_join(t_core, NULL);
 
-  del_DLList(& sh.cmd_list); // Suppresion de la liste des commandes
+  del_DLList(& sh.cmd_list); // Delete the shared command list
 
   return 0;
 }

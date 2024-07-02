@@ -98,7 +98,7 @@ int pwdConformity(const uint8_t pwd[], int pwdsize) {
  * The result is stored in a hash value (second parameter) of 32 bytes length
  * Result : 0 if OK
  */
-int compute_hash_executable(const char* filename, uint8_t hash[]) {
+int compute_hash_executable(const char* filename, uint8_t hash[32]) {
     int fp = open(filename, O_RDONLY);
 
     if (fp != -1) {

@@ -195,7 +195,7 @@ void search_and_print(T_Shared * pt_sh, const uint8_t * key, DLList list, const 
             nbInfo++; // A new entry has been find
 
             if ((!pos && (!match1 || !match2)) || (pos && pos == nbInfo)) {
-                char strNbInfo[ENTRY_NB_MAX_NB];
+                char strNbInfo[ENTRY_NB_MAX_NB+1];
                 sprintf(strNbInfo, "%d", nbInfo);
                 add_shared_cmd_3arg(pt_sh, HMI_CMD_SHOW_ENTRY, strNbInfo, (char *)information, (char *)secret);
                 nbInfoMatch++;
@@ -307,7 +307,7 @@ int do_command_delete_get_entry(T_Shared * pt_sh, const uint8_t * key, DLList li
 }
 
 /*
- * Delete an entry in a case of a positive confirmation
+ * Delete an entry
  *
  * Parameter 1: the shared structure
  * Parameter 2: the list of the entries
@@ -315,17 +315,13 @@ int do_command_delete_get_entry(T_Shared * pt_sh, const uint8_t * key, DLList li
  * Return value: the possibly modified list
  */
 DLList do_command_delete_exec(T_Shared * pt_sh, DLList list, int nbEntry) {
-    char response[2] = "n";
+    list = del_Element_DLList(list, nbEntry);
 
-    get_shared_cmd_1arg(pt_sh, response, 2);
-    if (response[0] == 'y') {
-        list = del_Element_DLList(list, nbEntry);
-        nbEntry = size_DLList(list);
-
-        char message[ALERT_MAX_SIZE];
-        sprintf(message, "Confirmation: one entry deleted, %d entries left.", nbEntry);
-        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
-    }
+    int nbEntries = size_DLList(list);
+    char message[ALERT_MAX_SIZE];
+    
+    sprintf(message, "Confirmation: one entry deleted, %d entries left.", nbEntries);
+    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
 
     return list;
 }
@@ -855,11 +851,12 @@ void * thread_core(void * t_arg) {
     int nbEntries; // Store the size of the list
     int nbEntry = 0; // Store an entry number of the list
 
+    char response[2] = "n";
+    int core_cmd;
     int loop_again = 1;
+
     while(loop_again) {
     
-        int core_cmd = 0;
-
         // Wait a business command
         core_cmd = get_shared_cmd(pt_sh);
     
@@ -869,7 +866,10 @@ void * thread_core(void * t_arg) {
             case CORE_CMD_KEY:
                 if (!has_key) {
                     int error = do_command_key(pt_sh, pt_core->exec_name, key, & list);
-                    if (!error) has_key = 1;
+                    if (!error) {
+                        has_key = 1;
+                        add_shared_cmd_0arg(pt_sh, HMI_CMD_CONNECTED); // We inform the user is connected
+                    }
                 } else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we have already a password!");
                 delete_shared_cmd(pt_sh, 1); // Delete the command
@@ -929,11 +929,12 @@ void * thread_core(void * t_arg) {
 
             // Remove an entry
             case CORE_CMD_DEL_P2:
-                nbEntries = size_DLList(list);
-                list = do_command_delete_exec(pt_sh, list, nbEntry);
-                if (size_DLList(list) == nbEntries - 1)
+                get_shared_cmd_1arg(pt_sh, response, 2);
+                if (response[0] == 'y') {
+                    list = do_command_delete_exec(pt_sh, list, nbEntry);
                     save_data(pt_sh, list, FILE_DATA_NAME, key);
-                
+                    add_shared_cmd_0arg(pt_sh, HMI_CMD_CLEAR_WINDOW); // We ask to clear the window
+                }
                 delete_shared_cmd(pt_sh, 1); // Delete the command
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER); // We return to interaction mode
                 break;
