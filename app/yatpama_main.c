@@ -26,9 +26,9 @@ void brute_force_attack_shield() {
       
     // The difference must be inferior to EXEC_INTERVAL_TIME (in seconds)
     if (gettimeofday(&time, NULL) == 0 && 
-        (time.tv_sec - file_stat.st_atimespec.tv_sec ) < EXEC_INTERVAL_TIME ) {
+        (time.tv_sec - file_stat.st_atime) < EXEC_INTERVAL_TIME ) {
         utimes(FILE_DATA_NAME, NULL); // Set access time
-        fprintf(stderr, "Potential brute force attack detected! Wait %d seconds before retrying.", EXEC_INTERVAL_TIME);
+        fprintf(stderr, "Potential brute force attack detected! Wait %d seconds before retrying.\n", EXEC_INTERVAL_TIME);
         exit(EXIT_FAILURE);
       }
   }
