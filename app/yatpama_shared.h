@@ -7,9 +7,10 @@
 #include "../lib/aes.h"
 #include "../lib/dllist.h"
 
-#define EXEC_VERSION "v1.6.0" // The version of the executable
+#define EXEC_VERSION "v1.6.1" // The version of the executable
 
-#define TIMEOUT_LOCK 15 // Timeout in seconds before locking the terminal
+#define TIMEOUT_LOCK 60 // Timeout in seconds before locking the terminal
+#define EXEC_INTERVAL_TIME 60 // Time interval in seconds between two execution
 
 #define FILE_EXEC_NAME "yatpama" // The name of the executable file
 #define FILE_DATA_NAME "./yatpama.data" // The name and path of the data file

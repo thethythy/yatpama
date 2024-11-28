@@ -1,7 +1,13 @@
 Changelog
 =========
 
-v1.6.0 (2024-07-??)
+v1.6.1 (2024-11-28)
+-------------------
+
+- Add a brute force attack shield
+- Modify screen lock to 60 s.
+
+v1.6.0 (2024-07-03)
 -------------------
 
 - Some corrections and changes suggested by sonar-lint and valgrind tools

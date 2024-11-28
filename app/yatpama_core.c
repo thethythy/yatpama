@@ -385,10 +385,6 @@ int load_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
         return 1;
     }
 
-    // -------------------------------------
-    // Brute force attack shield
-    // TODO
-
     return 0;
 }
 

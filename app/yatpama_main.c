@@ -1,8 +1,38 @@
+#include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
+#include "../lib/utilities.h"
 
 #include "yatpama_shared.h"
 #include "yatpama_hmi.h"
 #include "yatpama_core.h"
+
+/**
+ * Shield against brute force attack 
+ * Compare the actual time and the access time of the data file
+ * The difference must be inferior to EXEC_INTERVAL_TIME
+ */
+void brute_force_attack_shield() {
+
+  // Get the access time of the data file
+  struct stat file_stat;
+  int error = stat(FILE_DATA_NAME, &file_stat);
+
+  // Get the actual time and compare it with the last access
+  if (error == 0) {
+    struct timeval time;
+      
+    // The difference must be inferior to EXEC_INTERVAL_TIME (in seconds)
+    if (gettimeofday(&time, NULL) == 0 && 
+        (time.tv_sec - file_stat.st_atimespec.tv_sec ) < EXEC_INTERVAL_TIME ) {
+        utimes(FILE_DATA_NAME, NULL); // Set access time
+        fprintf(stderr, "Potential brute force attack detected! Wait %d seconds before retrying.", EXEC_INTERVAL_TIME);
+        exit(EXIT_FAILURE);
+      }
+  }
+}
 
 int main(int argc, char * argv[]) {
   pthread_t t_core;
@@ -21,6 +51,9 @@ int main(int argc, char * argv[]) {
     .exec_name = argv[0]  // The name of the executable entered on the command line
   };
 
+  // Brute force attack shield
+  brute_force_attack_shield();
+
   // The first command: launch an interaction loop on the HMI side
   add_shared_cmd_0arg(&sh, HMI_CMD_LOOP_INTER);
 
@@ -33,6 +66,8 @@ int main(int argc, char * argv[]) {
   pthread_join(t_core, NULL);
 
   del_DLList(& sh.cmd_list); // Delete the shared command list
+
+  utimes(FILE_DATA_NAME, NULL); // Set access time (against brute force attack)
 
   return 0;
 }
