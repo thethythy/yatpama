@@ -1,11 +1,12 @@
 Changelog
 =========
 
-v1.6.1 (2024-11-28)
+v1.6.1 (2024-12-10)
 -------------------
 
 - Add a brute force attack shield
 - Modify screen lock to 60 s.
+- Add the possibility of resizing the terminal
 
 v1.6.0 (2024-07-03)
 -------------------
