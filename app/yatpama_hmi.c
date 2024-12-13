@@ -22,7 +22,7 @@ typedef struct UI_Windows {
     WINDOW * alert_win;     // The alert window for displaying error messages and alerts
 } UI_Windows ;
 
-#define T_W_H   5           // Title window height
+#define T_W_H   3           // Title window height
 #define C_W_H   3           // Command window height
 #define P_W_H   2           // Prompt window height
 #define A_W_H   2           // Alert window height
@@ -44,19 +44,17 @@ void clear_view_window(WINDOW * win) {
  * Parameter 1: the title window pointer
  */
 void display_title_window(WINDOW * win) {
-    int row, col;
-    getmaxyx(win, row, col);   // Get the number of rows and columns
+    int col = getmaxx(win);   // Get the number of rows and columns
 
-    wmove(win, 0, (col - 36) / 2);
-    wprintw(win, "          ___   __");
-    wmove(win, 1, (col - 36) / 2);       
-    wprintw(win, "\\ /  /\\    |   |__|  /\\   |\\/|   /\\");
-    wmove(win, 2, (col - 36) / 2);
-    wprintw(win, " |  /  \\   |   |    /  \\  |  |  /  \\");
-
-    char mesg[] = "Yet Another Tiny Password Manager";
-    mvwprintw(win, row - 1, (col - (int)strlen(mesg)) / 2, "%s", mesg);
-    
+    wattron(win, A_BOLD);
+    wmove(win, 0, (col - 52) / 2);
+    wprintw(win, "                ___    __");
+    wmove(win, 1, (col - 52) / 2);       
+    wprintw(win, "\\ /   /\\         |    |__|  /\\        |\\/|    /\\");
+    wmove(win, 2, (col - 52) / 2);
+    wprintw(win, " |et /  \\nother  |iny |    /  \\ssword |  |an /  \\ger");
+    wattroff(win, A_BOLD);
+   
     wrefresh(win);
 }
 
@@ -67,9 +65,12 @@ void display_title_window(WINDOW * win) {
 void display_command_window(WINDOW * win) {
     int row, col;
     getmaxyx(win, row, col);   // Get the number of rows and columns
-    char mesg[] = "[p]wd [l]ist [s]earch [a]dd [d]el e[x]port [i]mport [q]uit";
-    mvwprintw(win, row - 2, (col - (int)strlen(mesg)) / 2, "%s", mesg);
-    box(win, 0, 0);
+    char mesg[] = " [a]dd [d]el [e]dit [i]mport [l]ist [p]wd [q]uit [s]earch e[x]port ";
+    
+    wattron(win, A_REVERSE);
+    mvwprintw(win, row - 2, (col - strlen(mesg)) / 2, "%s", mesg);
+    wattroff(win, A_REVERSE);
+
     wrefresh(win);
 }
 
@@ -80,7 +81,7 @@ void display_command_window(WINDOW * win) {
 void display_prompt_window(WINDOW * win) {
     int row, col;
     getmaxyx(win, row, col);                    // get the number of rows and columns
-    mvwhline(win, row - 1, 0, ACS_HLINE, col);  // draw a horizontal line at the top
+    mvwhline(win, row - 1, 0, ACS_S3, col);  // draw a horizontal line at the top
     wrefresh(win);
 }
 
@@ -89,9 +90,8 @@ void display_prompt_window(WINDOW * win) {
  * Parameter 1: the alert window pointer
  */
 void display_alert_window(WINDOW * win) {
-    int row, col;
-    getmaxyx(win, row, col);                // get the number of rows and columns
-    mvwhline(win, 0, 0, ACS_HLINE, col);    // draw a horizontal line at the bottom
+    int col = getmaxx(win);             // get the number of rows and columns
+    mvwhline(win, 0, 0, ACS_S9, col);   // draw a horizontal line at the bottom
     wrefresh(win);
 }
 
@@ -191,62 +191,6 @@ int start_paramaterize_curses(UI_Windows * wins) {
     // Create the window for displaying alert messages
     wins->alert_win = newwin(A_W_H, COLS, T_W_H + C_W_H + P_W_H + view_win_height, 0);
     display_alert_window(wins->alert_win);
-
-    return 0;
-}
-
-/*
- * Display an alert or a useful information
- * Parameter 1: the window where displaying
- * Parameter 2: the message to display
- */
-void displayAnAlertMessage(WINDOW * win, char * message) {
-    wmove(win, 1, 0);
-    wclrtoeol(win); // Clear line 
-    wprintw(win, "%s", message);
-    wrefresh(win);
-}
-
-/*
- * Display an entry
- * Parameter 1: the window for displaying the entry
- * Parameter 2: the number of the entry
- * Parameter 3: the field information of the entry
- * Parameter 4: the field secret of the entry
- * Return value: 0 if OK -1 if KO
- */
-int displayAnEntry(UI_Windows * wins, int nbInfo, char * information, char * secret) {
-    int row, col, y, x;
-    WINDOW * win = wins->view_win;
-
-    getmaxyx(win, row, col);    // Get the number of rows and columns
-    getyx(win, y, x);           // Get the current position
-
-    displayAnAlertMessage(wins->alert_win, ""); // Erase current alter message
-
-    if (y > row - 4) {
-        int ch;
-        displayAnAlertMessage(wins->alert_win, "Enter any key before displaying next entries");
-        do {
-            wtimeout(win, 1000);  // Set blocking read for 1 second
-            ch = wgetch(win);     // Wait 1 second a character
-
-            // The terminal size has changed ?
-            if (ch == KEY_RESIZE) {
-                if (resize_hmi(wins) == -1) return -1;
-                wmove(wins->alert_win, 1, 45); wrefresh(wins->alert_win); // Replace the cursor at its position
-                ch = ERR;
-            }
-        } while (ch == ERR);
-        wtimeout(win, -1);        // Return to normal behaviour for getch
-    }
-
-    wprintw(win, "Entry n°%i:", nbInfo);
-    wprintw(win, "\n Information: ");
-    wprintw(win, "\t%s", information);
-    wprintw(win, "\n Secret: ");
-    wprintw(win, "\t%s\n", secret);
-    wrefresh(win);
 
     return 0;
 }
@@ -357,6 +301,110 @@ int getAString(UI_Windows * wins, char * prompt, char * mesg, int size_max, int 
     return 0;
 }
 
+/**
+ * Display a flag to indicate is user is signed in or out
+ * Parameter 1: the window where displaying
+ * Parameter 2: a flag to indicate if user is signed in
+ */
+void displayIsSignedIn(WINDOW * win, int isSignedIn) {
+    wmove(win, 1, 0);
+    waddstr(win, "<");
+    if (!isSignedIn) {
+        wattron(win, A_BLINK);
+        waddch(win, ACS_NEQUAL);
+        wattroff(win, A_BLINK);
+    } else {
+        waddch(win, ACS_DIAMOND);
+    }
+    waddstr(win, ">");
+    waddch(win, ACS_VLINE);
+    wrefresh(win);
+}
+
+/*
+ * Display an alert or a useful information
+ * Parameter 1: the window where displaying
+ * Parameter 2: the message to display
+ * Parameter 3: a flag to indicate if user is signed in
+ */
+void displayAnAlertMessage(WINDOW * win, char * message, int isSignedIn) {
+    displayIsSignedIn(win, isSignedIn);
+
+    wmove(win, 1, 4);
+    wclrtoeol(win); // Clear line
+    wattron(win, A_DIM | A_ITALIC);
+    wprintw(win, "%s", message);
+    wrefresh(win);
+    wattroff(win, A_DIM | A_ITALIC);
+}
+
+/*
+ * Display an entry
+ * Parameter 1: the window for displaying the entry
+ * Parameter 2: the number of the entry
+ * Parameter 3: the field information of the entry
+ * Parameter 4: the field secret of the entry
+ * Parameter 5: the user is signed in or out
+ * Return value: 0 if OK -1 if KO
+ */
+int displayAnEntry(UI_Windows * wins, int nbInfo, char * information, char * secret, int isSignedIn) {
+    int row, col, y, x;
+    WINDOW * win = wins->view_win;
+
+    getmaxyx(win, row, col);    // Get the number of rows and columns
+    getyx(win, y, x);           // Get the current position
+
+    if (y > row - 4) {
+        int ch;
+        displayAnAlertMessage(wins->alert_win, "Enter any key before displaying next entries", isSignedIn);
+        do {
+            wtimeout(win, 1000);  // Set blocking read for 1 second
+            ch = wgetch(win);     // Wait 1 second a character
+
+            // The terminal size has changed ?
+            if (ch == KEY_RESIZE) {
+                if (resize_hmi(wins) == -1) return -1;
+                wmove(wins->alert_win, 1, 45); wrefresh(wins->alert_win); // Replace the cursor at its position
+                ch = ERR;
+            }
+        } while (ch == ERR);
+        wtimeout(win, -1);        // Return to normal behaviour for getch
+        displayAnAlertMessage(wins->alert_win, "", isSignedIn); // Erase current alert message
+    }
+
+    wprintw(win, "Entry n°%i:", nbInfo);
+    wprintw(win, "\n Information: ");
+    wprintw(win, "\t%s", information);
+    wprintw(win, "\n Secret: ");
+    wprintw(win, "\t%s\n", secret);
+    wrefresh(win);
+
+    return 0;
+}
+
+/*
+ * Edit an entry
+ * Parameter 1: the window used to get the strings
+ * Parameter 2: the next command for the core thread
+*/
+void editAnEntry(UI_Windows * wins, int next_core_command) {
+    char information[MAX_SIZE];
+    int error = getAString(wins, "Information: ", information, MAX_SIZE, 1);
+    
+    if (error == 0) {
+        char secret[MAX_SIZE];
+        error = getAString(wins, "Secret: ", secret, MAX_SIZE, 1);
+    
+        if (error == 0) {
+            // Send a request to the core thread
+            add_shared_cmd_2arg(pt_sh, next_core_command, information, secret);
+        }
+
+        memset(secret, 0, MAX_SIZE);
+    }
+    memset(information, 0, MAX_SIZE);
+}
+
 /*
  * Lock the terminal and wait the user password to unlock it 
  * Paramater 1: record of the window pointers
@@ -406,10 +454,10 @@ int lock_hmi(UI_Windows * wins, BYTE * pass_hash) {
  * Wait that the user chooses a valid command
  * After a timeout, lock the terminal
  * Paramater 1: record of the window pointers
- * Parameter 2: flag that indicates if user is connected
+ * Parameter 2: flag that indicates if user is signed in
  * Parameter 3: the password hash
  */ 
-char getAValidCommand(UI_Windows * wins, int isConnected, BYTE * pass_hash) {
+char getAValidCommand(UI_Windows * wins, int isSignedIn, BYTE * pass_hash) {
     char cmd;
     int again = 1, key, timer;
 
@@ -426,8 +474,8 @@ char getAValidCommand(UI_Windows * wins, int isConnected, BYTE * pass_hash) {
         key = wgetch(wins->prompt_win);     // Wait 1 second a character
         wtimeout(wins->prompt_win, -1);     // Blocking read for next getch
 
-        // Ready to lock the terminal (user must be connected) ?
-        if (key == ERR && isConnected) {
+        // Ready to lock the terminal (user must be signed in) ?
+        if (key == ERR && isSignedIn) {
             timer = timer - 1000; // One second elapsed
             if (timer == 0) {
                 // Lock because timer == zero
@@ -440,8 +488,9 @@ char getAValidCommand(UI_Windows * wins, int isConnected, BYTE * pass_hash) {
                 if (resize_hmi(wins) == -1) return 'k';
         } else {
             cmd = (char)key;
-            again = cmd != 'p' && cmd != 'l' && cmd != 'a' && cmd != 'q' &&
-                    cmd != 's' && cmd != 'd' && cmd != 'x' && cmd != 'i';
+            again = cmd != 'a' && cmd != 'd' && cmd != 'e' && cmd != 'i' && 
+                    cmd != 'l' && cmd != 'p' && cmd != 'q' && cmd != 's' && 
+                    cmd != 'x' ;
         }
 
     } while (again);
@@ -453,20 +502,60 @@ char getAValidCommand(UI_Windows * wins, int isConnected, BYTE * pass_hash) {
  * Main interaction loop
  * Parameter 1: a shared data record
  * Parameter 2: a record of pointers on windows
- * Parameter 3: a flag to indicate if the user is connected
+ * Parameter 3: a flag to indicate if the user is signed in
  * Parameter 4: the user password hash
  */
-void interaction_loop(T_Shared * pt_sh, UI_Windows * wins, int isConnected, BYTE * pass_hash) {
+void interaction_loop(T_Shared * pt_sh, UI_Windows * wins, int isSignedIn, BYTE * pass_hash) {
     char command; // The current command
+    char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Number entry as a string of characters
     int error;
 
-    command = getAValidCommand(wins, isConnected, pass_hash); // Wait an order
+    command = getAValidCommand(wins, isSignedIn, pass_hash); // Wait an order
 
     switch (command) {
 
+        // Add a new entry
+        case 'a':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Add a new secret information", isSignedIn);
+            editAnEntry(wins, CORE_CMD_ADD);
+            break;
+
+        // Removing an entry
+        case 'd':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Delete an entry", isSignedIn);
+            error = getAString(wins, "Give entry number: ", cNbEntry, ENTRY_NB_MAX_NB + 1, 1); // Get the entry number to remove
+            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_DEL_P1, cNbEntry); // Request to get the entry concerned
+            break;
+
+        // Editing an entry
+        case 'e':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Edit an entry", isSignedIn);
+            error = getAString(wins, "Give entry number: ", cNbEntry, ENTRY_NB_MAX_NB + 1, 1); // Get the entry number to edit
+            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_EDT_P1, cNbEntry); // Request to get the entry concerned
+            break;
+
+        // Importation of entries
+        case 'i':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Import entries", isSignedIn);
+            char file_import[MAXPATHLEN];
+            error = getAString(wins, "Give the name of the file to import from: ", file_import, MAXPATHLEN, 1);
+            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_IMP, file_import); // Request to execute an importation
+            break;
+
+        // Displaying entries
+        case 'l':
+            clear_view_window(wins->view_win);
+            displayAnAlertMessage(wins->alert_win, "Print list of entries", isSignedIn);
+            add_shared_cmd_0arg(pt_sh, CORE_CMD_PRINT); // Request for the list
+            break;
+
         // Enter the password and generate the key
         case 'p':
-            displayAnAlertMessage(wins->alert_win, "Enter a password");
+            displayAnAlertMessage(wins->alert_win, "Enter a password", isSignedIn);
             char msecret[PWD_MAX_SIZE]; // The password
             
             // Get the user password
@@ -478,75 +567,27 @@ void interaction_loop(T_Shared * pt_sh, UI_Windows * wins, int isConnected, BYTE
             }
             break;
 
-        // Displaying entries
-        case 'l':
-            clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Print list of entries");
-            add_shared_cmd_0arg(pt_sh, CORE_CMD_PRINT); // Request for the list
-            break;
-
-        // Filtering entries
-        case 's':
-            clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Search entries following a pattern");
-            char pattern[MAX_SIZE]; // The filtering pattern
-            error = getAString(wins, "Pattern: ", pattern, MAX_SIZE, 1);
-            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_SEARCH, pattern); // Request for search
-            break;
-
-        // Add a new entry
-        case 'a':
-            clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Add a new secret information");
-
-            char information[MAX_SIZE];
-            error = getAString(wins, "Information: ", information, MAX_SIZE, 1);
-            
-            if (error == 0) {
-                char secret[MAX_SIZE];
-                error = getAString(wins, "Secret: ", secret, MAX_SIZE, 1);
-            
-                if (error == 0) {
-                    add_shared_cmd_2arg(pt_sh, CORE_CMD_ADD, information, secret); // Request to add an entry
-                }
-
-                memset(secret, 0, MAX_SIZE);
-            }
-
-            memset(information, 0, MAX_SIZE);
-
-            break;
-
         // Normal shutdown
         case 'q':
             add_shared_cmd_0arg(pt_sh, HMI_CMD_EXIT); // End of user interface
             break;
         
-        // Removing an entry
-        case 'd':
+        // Filtering entries
+        case 's':
             clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Delete an entry");
-            char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Number entry as a string of characters
-            error = getAString(wins, "Give entry number: ", cNbEntry, ENTRY_NB_MAX_NB + 1, 1); // Get the entry number to remove
-            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_DEL_P1, cNbEntry); // Request to get the entry concerned
+            displayAnAlertMessage(wins->alert_win, "Search entries following a pattern", isSignedIn);
+            char pattern[MAX_SIZE]; // The filtering pattern
+            error = getAString(wins, "Pattern: ", pattern, MAX_SIZE, 1);
+            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_SEARCH, pattern); // Request for search
             break;
 
         // Exportation of entries
         case 'x':
             clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Export entries");
+            displayAnAlertMessage(wins->alert_win, "Export entries", isSignedIn);
             char file_export[MAXPATHLEN];
             error = getAString(wins, "Give the name of the file to export to: ", file_export, MAXPATHLEN, 1);
             if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_EXP, file_export); // Request to execute an exportation
-            break;
-
-        // Importation of entries
-        case 'i':
-            clear_view_window(wins->view_win);
-            displayAnAlertMessage(wins->alert_win, "Import entries");
-            char file_import[MAXPATHLEN];
-            error = getAString(wins, "Give the name of the file to import from: ", file_import, MAXPATHLEN, 1);
-            if (error == 0) add_shared_cmd_1arg(pt_sh, CORE_CMD_IMP, file_import); // Request to execute an importation
             break;
 
         default:
@@ -576,9 +617,10 @@ void * thread_hmi(void * t_arg) {
         add_shared_cmd_hpriority(pt_sh, CORE_CMD_EXIT); // Priority request to stop CORE thread
         return NULL;
     }
+    displayIsSignedIn(wins.alert_win, 0);
 
-    BYTE pass_hash[32];     // The password hash (sha256)
-    int isConnected = 0;    // Flag to know if user is connected or not
+    BYTE pass_hash[32];    // The password hash (sha256)
+    int isSignedIn = 0;    // Flag to know if user is signed in or out
 
     int loop_again = 1;
     while(loop_again == 1) {
@@ -594,7 +636,7 @@ void * thread_hmi(void * t_arg) {
             // Wait a new command
             case HMI_CMD_LOOP_INTER:
                 delete_shared_cmd(pt_sh, 0); // Delete the command
-                interaction_loop(pt_sh, & wins, isConnected, pass_hash); // Interact with the user
+                interaction_loop(pt_sh, & wins, isSignedIn, pass_hash); // Interact with the user
                 break;
 
             // Display an entry
@@ -603,13 +645,13 @@ void * thread_hmi(void * t_arg) {
                 get_shared_cmd_2arg(pt_sh, information, MAX_SIZE);      // Get the informatin field
                 get_shared_cmd_3arg(pt_sh, secret, MAX_SIZE);           // Get the secret field
                 delete_shared_cmd(pt_sh, 3);                            // Remove the command
-                displayAnEntry(&wins, atoi(nbInfo), information, secret); // Display the entry
+                displayAnEntry(&wins, atoi(nbInfo), information, secret, isSignedIn); // Display the entry
                 break;
 
             // Clear the window displaying entries
             case HMI_CMD_CLEAR_WINDOW:
-                clear_view_window(wins.view_win);           // Clear all the window
-                delete_shared_cmd(pt_sh, 0);                // Remove the command
+                clear_view_window(wins.view_win);   // Clear the window of the entries
+                delete_shared_cmd(pt_sh, 0);        // Remove the command
                 break;
 
             // Ask confirmation y/n
@@ -621,16 +663,17 @@ void * thread_hmi(void * t_arg) {
                 if (error == 0) add_shared_cmd_1arg(pt_sh, atoi(next_command), answer);     // Send the answer and the next command
                 break;
 
-            // Inform the user is connected or not
-            case HMI_CMD_CONNECTED:
+            // Inform the user is signed in
+            case HMI_CMD_SIGNEDIN:
                 delete_shared_cmd(pt_sh, 0);    // Remove the command
-                isConnected = 1;                // User is now connected
+                isSignedIn = 1;                // User is now signed in
+                displayIsSignedIn(wins.alert_win, 1); // Display a flag
                 break;
 
             // Display an alert message
             case HMI_CMD_ALERT:
                 get_shared_cmd_1arg(pt_sh, message, ALERT_MAX_SIZE);        // Get the message
-                displayAnAlertMessage(wins.alert_win, message);             // Display the alert message
+                displayAnAlertMessage(wins.alert_win, message, isSignedIn); // Display the alert message
                 delete_shared_cmd(pt_sh, 1);                                // Remove the command
                 break;
         
@@ -650,6 +693,12 @@ void * thread_hmi(void * t_arg) {
                 delete_shared_cmd(pt_sh, 1);                            // Remove the command
                 add_shared_cmd_hpriority(pt_sh, CORE_CMD_EXIT);         // Priority request to stop CORE thread
                 loop_again = 0;                                         // End of the HMI thread
+                break;
+
+            // Edit an existing entry
+            case HMI_CMD_EDIT_ENTRY:
+                delete_shared_cmd(pt_sh, 0);            // Remove the command
+                editAnEntry(& wins, CORE_CMD_EDT_P2);   // Edit an entry then send it
                 break;
 
             default:

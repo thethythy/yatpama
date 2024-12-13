@@ -46,6 +46,11 @@ DLList addAtFirst_DLList(DLList list, void * pdata);
 // Return the modified list
 DLList del_Element_DLList(DLList list, int pos);
 
+// Modify the inner data of a node
+// The second parameter is the position of the node (position 1 is the first node)
+// The last parameter is the new data (erase the old data)
+DLList mod_Element_DLList(DLList list, int pos, void * pdata);
+
 // Return the next node of the list
 // Return NULL if the list is empty or if there is no next node
 DLList next_DLList(DLList list);

@@ -64,10 +64,11 @@ typedef struct T_Core {
 #define HMI_CMD_SHOW_ENTRY      2
 #define HMI_CMD_CLEAR_WINDOW    3
 #define HMI_CMD_ASK_YN          4
-#define HMI_CMD_CONNECTED       5
+#define HMI_CMD_SIGNEDIN        5
 #define HMI_CMD_ALERT           6
 #define HMI_CMD_EXIT            7
 #define HMI_CMD_ERROR           8
+#define HMI_CMD_EDIT_ENTRY      9
 
 #define CORE_CMD_KEY        100
 #define CORE_CMD_PRINT      101
@@ -78,6 +79,8 @@ typedef struct T_Core {
 #define CORE_CMD_EXP        106
 #define CORE_CMD_IMP        107
 #define CORE_CMD_EXIT       108
+#define CORE_CMD_EDT_P1     109
+#define CORE_CMD_EDT_P2     110
 
 // ---------------------------------------------------------------------------
 // List of common functions related to T_Shared

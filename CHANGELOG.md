@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.7.0 (2025-12-13)
+-------------------
+
+- Now, you can edit an existing entry
+- Now, when the main key is not used, it is left masked in memory
+- A more beautiful interface
+
 v1.6.1 (2024-12-10)
 -------------------
 

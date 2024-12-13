@@ -338,5 +338,81 @@ int main(void)
         fprintf(stdout, "Test 25 addAtFirst_DLList: \tOK\n");
     }
 
+    del_DLList(&temp);
+
+    // ----------------------------------
+    // Test mod_Element_DLList
+
+    list = mod_Element_DLList(NULL, 0, NULL); // Modify an empty list
+
+    error = list != NULL;
+
+    if (error) {
+        fprintf(stdout, "Test 26 mod_Element_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 26 mod_Element_DLList: \tOK\n");
+    }
+
+    // ----------------------------------
+    // Test mod_Element_DLList
+    
+    pentry1 = malloc(sizeof *pentry1);
+    list = addAtLast_DLList(list, pentry1); // Add a first node
+
+    temp = mod_Element_DLList(list, 2, NULL); // Try to modify a second node
+
+    error = temp != list || temp->pdata != list->pdata ;
+
+    if (error) {
+        fprintf(stdout, "Test 27 mod_Element_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 27 mod_Element_DLList: \tOK\n");
+    }
+
+    // ----------------------------------
+    // Test mod_Element_DLList
+
+    pentry2 = malloc(sizeof *pentry2);
+    list = addAtLast_DLList(list, pentry2); // Add a second node
+
+    temp = mod_Element_DLList(list, 2, NULL); // Modify the second node
+
+    error = temp != list || temp->next->pdata != NULL || temp->pdata != pentry1;
+
+    if (error) {
+        fprintf(stdout, "Test 28 mod_Element_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 28 mod_Element_DLList: \tOK\n");
+    }
+
+    // ----------------------------------
+    // Test mod_Element_DLList
+
+    pentry2 = malloc(sizeof *pentry2);
+    temp = mod_Element_DLList(list, 2, pentry2); // Try to modify the second node
+
+    error = temp != list || temp->next->pdata != pentry2 || temp->pdata != pentry1;
+
+    if (error) {
+        fprintf(stdout, "Test 29 mod_Element_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 29 mod_Element_DLList: \tOK\n");
+    }
+
+    // ----------------------------------
+    // Test mod_Element_DLList
+
+    temp = mod_Element_DLList(list, -1, NULL); // Try to modify a unknown node
+
+    error = temp != list || temp->pdata == NULL || temp->next->pdata == NULL;
+
+    if (error) {
+        fprintf(stdout, "Test 30 mod_Element_DLList: \tKO\n");
+    } else {
+        fprintf(stdout, "Test 30 mod_Element_DLList: \tOK\n");
+    }
+
+    del_DLList(&list);
+
     return error;
 }

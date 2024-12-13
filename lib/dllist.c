@@ -93,6 +93,21 @@ DLList del_Element_DLList(DLList list, int pos) {
     return list;
 }
 
+DLList mod_Element_DLList(DLList list, int pos, void * pdata) {
+    if (list != NULL && pos > 0) {
+        if (pos == 1) {
+            free(list->pdata);
+            list->pdata = pdata;
+        } else 
+            // If we want modify a node at position > 1 of a list of length > 1
+            if (pos > 1 && list->next != NULL) {
+                list->next = mod_Element_DLList(list->next, pos-1, pdata);
+            }
+    }
+
+    return list;
+}
+
 DLList next_DLList(DLList list) {
     return list == NULL ? NULL : list->next;
 }
