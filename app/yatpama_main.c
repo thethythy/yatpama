@@ -52,7 +52,10 @@ int main(int argc, char * argv[]) {
   };
 
   // Brute force attack shield
+  //#define __DEBUG__
+  #ifndef __DEBUG__
   brute_force_attack_shield();
+  #endif
 
   // The first command: launch an interaction loop on the HMI side
   add_shared_cmd_0arg(&sh, HMI_CMD_LOOP_INTER);

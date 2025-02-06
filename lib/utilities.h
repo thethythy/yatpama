@@ -6,8 +6,10 @@
 
 void printfh(const uint8_t *str, int len);
 
-int compare(const BYTE tab1[], int len1, const BYTE tab2[], int len2);
-
 void getAbsolutePath(const char * filename, char * argv0, char *path, size_t pathlen);
+
+unsigned long exponentInteger(const unsigned long base, unsigned n);
+
+uint32_t littleToBigEndian(uint32_t val);
 
 #endif

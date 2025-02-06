@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../lib/utilities.h"
-#include "../lib/crypto.h"
 #include "../lib/aes.h"
+#include "../lib/crypto.h"
 
 int main(int argc, char* argv[]) {
     uint8_t iv[16]; // For AES128 an IV of 16 bytes

@@ -17,16 +17,6 @@ void printfh(const uint8_t *str, int len) {
 }
 
 /*
- * Compare two tables of BYTE
- * Return 1 if they are equal otherwise -1
- */
-int compare(const BYTE tab1[], int len1, const BYTE tab2[], int len2) {
-    if (len1 != len2) return -1;
-    for (int i = 0; i < len1; i++) if (tab1[i] != tab2[i]) return -1;
-    return 1;
-}
-
-/*
  * Get the full path of the file given in 1st parameter
  *
  * It is necessary to test the following 3 cases: we start by looking at the form of argv[0]
@@ -85,4 +75,27 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
 
         free(path);
     }
+}
+
+/**
+ * Function pow for integer
+ */
+unsigned long exponentInteger(const unsigned long base, unsigned n) {
+  unsigned long i, p = base;
+  for (i = 1; i < n; ++i) p *= base;
+  return p;
+}
+
+/**
+ * Convert a little endian representation to big endian representation
+ */
+uint32_t littleToBigEndian(uint32_t val) {  
+    uint32_t b0,b1,b2,b3;
+
+    b0 = (val & 0x000000ff) << 24u;
+    b1 = (val & 0x0000ff00) << 8u;
+    b2 = (val & 0x00ff0000) >> 8u;
+    b3 = (val & 0xff000000) >> 24u;
+
+    return b0 | b1 | b2 | b3;
 }

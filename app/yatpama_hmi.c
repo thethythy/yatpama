@@ -445,7 +445,7 @@ int lock_hmi(UI_Windows * wins, BYTE * pass_hash) {
         else
             return -1;
 
-    } while (1 != compare(hash, 32, pass_hash, 32));
+    } while (0 != memcmp(hash, pass_hash, 32));
 
     return resize_hmi(wins);
 }

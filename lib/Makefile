@@ -9,7 +9,7 @@ utilities.o : utilities.c utilities.h
 	@(echo [CC] $@)
 	$(CC) $(CFLAGS) -o  $@ $<
 
-crypto.o : crypto.c crypto.h aes.h sha256.h
+crypto.o : crypto.c crypto.h aes.h sha256.h utilities.h hmac_sha256.h
 	@(echo [CC] $@)
 	$(CC) $(CFLAGS) -o  $@ $<
 

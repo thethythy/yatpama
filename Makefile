@@ -27,7 +27,10 @@ test_AES128 : $(TESTDIR)/test2_AES128.o
 test_dllist : $(TESTDIR)/test_dllist.o
 	@( cd test; $(MAKE) test_dllist )
 
-test : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist
+test_crypto : $(TESTDIR)/test_crypto.o
+	@( cd test; $(MAKE) test_crypto )
+
+test : test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist test_crypto
 
 all : yatpama test
 
@@ -37,4 +40,4 @@ clean :
 
 delete :
 	@echo "Make delete"
-	rm -f yatpama test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist
+	rm -f yatpama test_AES128 test2_AES128 test_SHA256 test_HMAC_SHA256 test_dllist test_crypto

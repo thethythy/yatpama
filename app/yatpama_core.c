@@ -13,6 +13,18 @@
 
 #include "yatpama_shared.h"
 
+/**
+ * A structure with:
+ * - the symmetric key masked
+ * - the random mask of the symmetric key
+ * - the salt used for generating the key from the password
+ */
+typedef struct Key_Material {
+    uint8_t key_m[AES_KEYLEN];  // Encryption/decryption key masked
+    uint8_t mask[AES_KEYLEN];   // Mask of the key
+    uint8_t salt[SALT_SIZE];    // Salt for the key generation algorithm
+} Key_Material;
+
 /*
  * Calculate the hash value of the executed file
  * We take the absolute path to access the executed file
@@ -50,35 +62,76 @@ int get_hash_executable(T_Shared * pt_sh, char * argv0, uint8_t * hash) {
     return 0;
 }
 
+/**
+ * Read from the data file or generate a salt
+ * This salt is used in the key generation algorithm
+ * 
+ * Parameter 1: The shared structure
+ * Parameter 2: key materials
+ * Parameter 3: fullpath name of the data file
+ * Return value: 0 if OK
+ */
+int get_salt_for_key_generation(T_Shared * pt_sh, Key_Material * key_mat, const char * file_name) {
+    int error = 0, nblus;
+    int fp;
+
+    fp = open(file_name, O_RDONLY);
+
+    if (fp != -1) {
+
+        Entry entry;
+        memset(&entry, 0, sizeof entry);
+
+        // ---------------------------
+        // Read the special record
+        nblus = read(fp, &entry, sizeof entry);
+        error = nblus != sizeof entry;
+        close(fp);
+
+        if (error) {
+            add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to read the special entry from data file!");
+            return 1;
+        }
+
+        // Copy the salt from the data file
+        memcpy(key_mat->salt, entry.secret, SALT_SIZE);
+    }
+    else {
+        // Generate a new salt
+        rng(key_mat->salt, SALT_SIZE);
+    }
+
+    return error;
+}
+
 /*
  * Generate a master key to encrypt/decrypt
- * The function generates the key (2nd parameter) of 32 bytes or 256 bits
+ * The function generates the key (2nd parameter) of 32 bytes
  * 
  * Parameter 1: The shared structure
  * Parameter 2: The name of the executable to bind the key with the executable
- * Parameter 3: The generated key
- * Parameter 4: The mask of the key
- * Parameter 5: The password
+ * Parameter 3: key materials
+ * Parameter 4: The password
  * Return value: 0 if OK
  */
-int generate_key(T_Shared * pt_sh, char * argv0, uint8_t * key_m, uint8_t * mask, uint8_t * msecret) {
+int generate_key(T_Shared * pt_sh, char * argv0, Key_Material * key_mat, uint8_t * msecret) {
     int error = 0; 
     error = pwdConformity(msecret, PWD_SIZE);  // Password compliance check
 
     if (error)
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "Password does not conform to password policy!");
     else {
-        // Generates a key from the password
-        pwdtokey(msecret, PWD_MAX_SIZE, key_m);
+        // Generate a key from the password
+        KDF_PBKDF2(msecret, sizeof msecret, key_mat->salt, SALT_SIZE, MAX_ROUND_PBKDF2, AES_KEYLEN, key_mat->key_m);
 
-        // Generates final key = key_from_pwd xor hash_from_executable
+        // Generate final key = key_from_pwd xor hash_from_executable
         BYTE hash[AES_KEYLEN];
         error = get_hash_executable(pt_sh, argv0, hash);
-        if (!error) xor_table(key_m, hash, AES_KEYLEN);
+        if (!error) xor_table(key_mat->key_m, hash, AES_KEYLEN);
 
         // Mask the final key with a random string
-        rng(mask, AES_KEYLEN);
-        xor_table(key_m, mask, AES_KEYLEN);
+        rng(key_mat->mask, AES_KEYLEN);
+        xor_table(key_mat->key_m, key_mat->mask, AES_KEYLEN);
     }
 
     return error;
@@ -108,17 +161,16 @@ void hmac_data(const uint8_t * key, const char * information, const char * secre
 
 /*
  * Encrypting an entry
- * Parameter 1: the encryption key masked
- * Parameter 2: the mask of the key
- * Parameter 2: the entry containing the two clear strings then encrypted
+ * Parameter 1: key materials
+ * Parameter 2: the entry uncrypted then encrypted
  */
-void cypher_data(const uint8_t * key_m, const uint8_t * mask, Entry * pentry) {
+void cypher_data(const Key_Material * key_mat, Entry * pentry) {
     struct AES_ctx ctx;
 
     // Unmask to get the real key
     uint8_t key[AES_KEYLEN];
-    memcpy(key, key_m, AES_KEYLEN);
-    xor_table(key, mask, AES_KEYLEN);
+    memcpy(key, key_mat->key_m, AES_KEYLEN);
+    xor_table(key, key_mat->mask, AES_KEYLEN);
 
     // Calculation of the HMAC of the input
     hmac_data(key, (char*)pentry->information, (char*)pentry->secret, pentry->hash);
@@ -142,19 +194,18 @@ void cypher_data(const uint8_t * key_m, const uint8_t * mask, Entry * pentry) {
 
 /*
  * In-memory decryption of an entry 
- * Parameter 1: the encryption key masked
- * Parameter 2: the mask of the key
- * Parameter 3: the entry containing the two encrypted strings
- * Parameter 4: pointer on clear information
- * Parameter 5: pointer on clear secret
+ * Parameter 1: key materials
+ * Parameter 2: the entry containing the two encrypted strings
+ * Parameter 3: pointer on clear information
+ * Parameter 4: pointer on clear secret
  */
-void uncypher_data(const uint8_t * key_m,  const uint8_t * mask, const Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
+void uncypher_data(const Key_Material * key_mat, const Entry * pentry, uint8_t * pinformation, uint8_t * psecret) {
     struct AES_ctx ctx;
 
     // Unmask the key
     uint8_t key[AES_KEYLEN];
-    memcpy(key, key_m, AES_KEYLEN);
-    xor_table(key, mask, AES_KEYLEN);
+    memcpy(key, key_mat->key_m, AES_KEYLEN);
+    xor_table(key, key_mat->mask, AES_KEYLEN);
 
     // In-memory decryption of information field
     memcpy(pinformation, pentry->information, MAX_SIZE);
@@ -175,13 +226,12 @@ void uncypher_data(const uint8_t * key_m,  const uint8_t * mask, const Entry * p
  * If the position is given, only the entry at that position is displayed
  * 
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the list of the entries
- * Parameter 5: the pattern
- * Parameter 6: the position 
+ * Parameter 2: key materials
+ * Parameter 3: the list of the entries
+ * Parameter 4: the pattern
+ * Parameter 5: the position 
  */
-void search_and_print(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list, const char * pattern, int pos) {
+void search_and_print(T_Shared * pt_sh, const Key_Material * key_mat, DLList list, const char * pattern, int pos) {
     if (!isEmpty_DLList(list)) {
 
         int error = 0;
@@ -203,7 +253,7 @@ void search_and_print(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * m
 
         do {
             // In-memory decryption
-            uncypher_data(key_m, mask, list->pdata, information, secret);
+            uncypher_data(key_mat, list->pdata, information, secret);
 
             // Pattern matching
             int match1 = 0;
@@ -246,29 +296,27 @@ void search_and_print(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * m
 /*
  * Obtain the entire list of entries
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key 
- * Parameter 4: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the list of the entries
  */
-void do_command_print(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
-    search_and_print(pt_sh, key_m, mask, list, NULL, 0);
+void do_command_print(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
+    search_and_print(pt_sh, key_mat, list, NULL, 0);
 }
 
 /*
  * Finds and sends the entries matching the pattern
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the list of the entries
  */
-void do_command_search(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
+void do_command_search(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
     char pattern[MAX_SIZE];
 
     // Retrieve the pattern
     get_shared_cmd_1arg(pt_sh, pattern, MAX_SIZE);
 
     // Search according the pattern
-    search_and_print(pt_sh, key_m, mask, list, pattern, 0);
+    search_and_print(pt_sh, key_mat, list, pattern, 0);
 }
 
 /*
@@ -279,19 +327,18 @@ void do_command_search(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * 
  * We also add a hmac value for more security
  * 
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the list of the entries
  * Return value: the modified list
  */
-DLList do_command_add(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
+DLList do_command_add(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
     Entry * pentry = malloc(sizeof *pentry);
 
     get_shared_cmd_1arg(pt_sh, (char *) pentry->information, MAX_SIZE);
     get_shared_cmd_2arg(pt_sh, (char *) pentry->secret, MAX_SIZE);
 
     // Encryt the entry
-    cypher_data(key_m, mask, pentry);
+    cypher_data(key_mat, pentry);
 
     // Add to the list
     list = addAtLast_DLList(list, pentry);
@@ -305,20 +352,19 @@ DLList do_command_add(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * m
 /**
  * Edit an existing entry
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the position of the entry to edit
- * Parameter 5: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the position of the entry to edit
+ * Parameter 4: the list of the entries
  * Return value: the modified list
  */
-DLList do_command_edit(T_Shared *pt_sh, const uint8_t * key_m, const uint8_t * mask, int nbEntry, DLList list) {
+DLList do_command_edit(T_Shared *pt_sh, const Key_Material * key_mat, int nbEntry, DLList list) {
     Entry * pentry = malloc(sizeof *pentry);
 
     get_shared_cmd_1arg(pt_sh, (char *) pentry->information, MAX_SIZE);
     get_shared_cmd_2arg(pt_sh, (char *) pentry->secret, MAX_SIZE);
 
     // Encryt the entry
-    cypher_data(key_m, mask, pentry);
+    cypher_data(key_mat, pentry);
 
     // Modify the list
     list = mod_Element_DLList(list, nbEntry, pentry);
@@ -335,12 +381,11 @@ DLList do_command_edit(T_Shared *pt_sh, const uint8_t * key_m, const uint8_t * m
  * Send the entry to delete or edit 
  * 
  * Parameter 1: the shared structure
- * Parameter 2: the encryption key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the list of the entries
  * Return value: the number of the entry (or -1)
  */ 
-int do_command_get_entry_from_number(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
+int do_command_get_entry_from_number(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
     int error; // Indicator flag
 
     char cNbEntry[ENTRY_NB_MAX_NB + 1]; // Entry number as a string
@@ -353,7 +398,7 @@ int do_command_get_entry_from_number(T_Shared * pt_sh, const uint8_t * key_m, co
  
     if (!error) {
         // Send the entry to delete or edit
-        search_and_print(pt_sh, key_m, mask, list, NULL, nbEntry);
+        search_and_print(pt_sh, key_mat, list, NULL, nbEntry);
     } else {
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "This entry number does not exist");
         return -1;
@@ -448,12 +493,11 @@ int load_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
  * Loads and controls data from the file into a list
  *
  * Parameter 1: the shared structure
- * Parameter 2: the master key masked
- * Parameter 3: the mask of the key
- * Parameter 4: fullpath name of the data file
+ * Parameter 2: key materials
+ * Parameter 3: fullpath name of the data file
  * Return value: the list of the entries
  */
-DLList load_data(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, const char * file_name) {
+DLList load_data(T_Shared * pt_sh, const Key_Material * key_mat, const char * file_name) {
     DLList list = NULL;
     int fp;
     int error = 0;
@@ -464,8 +508,8 @@ DLList load_data(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, 
 
         // Unmask to get the real key
         uint8_t key[AES_KEYLEN];
-        memcpy(key, key_m, AES_KEYLEN);
-        xor_table(key, mask, AES_KEYLEN);
+        memcpy(key, key_mat->key_m, AES_KEYLEN);
+        xor_table(key, key_mat->mask, AES_KEYLEN);
 
         // Reads and controls the special record
         error = load_special_entry(pt_sh, fp, key);
@@ -488,7 +532,7 @@ DLList load_data(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, 
                 if (!error) {
 
                     // In-memory decryption
-                    uncypher_data(key_m, mask, pentry, information, secret);
+                    uncypher_data(key_mat, pentry, information, secret);
 
                     // Control the hash value
 
@@ -496,7 +540,7 @@ DLList load_data(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, 
                     hmac_data(key, (char*)information, (char*)secret, hash2);
 
                     // Compare the two hash values
-                    if (-1 == compare(pentry->hash, sizeof pentry->hash, hash2, sizeof hash2)) {
+                    if (0 != memcmp(pentry->hash, hash2, HASH_SIZE)) {
                         add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Wrong password or data file has been corrupted!");
                         close(fp);
                         free(pentry);
@@ -596,11 +640,11 @@ int backup_data(T_Shared * pt_sh, const char * file_name) {
  * Save the special version control record
  * 
  * Parameter 1: the shared structure
- * Parameter 2: fp is the number of the data file already opened
- * Parameter 3: the master key
+ * Parameter 2: fp is the handler of the data file already opened
+ * Parameter 3: the key materials
  * Return value : error value (0 = OK)
  */
-int save_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
+int save_special_entry(T_Shared * pt_sh, int fp, const Key_Material * key_mat) {
     ssize_t nbBytes;
     int error = 0; 
     Entry entry;
@@ -611,18 +655,19 @@ int save_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
     // Version number
     memcpy((void *)entry.information, (const void *)EXEC_VERSION, sizeof EXEC_VERSION);
 
-    // Date in seconds
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    error = sizeof time.tv_sec >= sizeof entry.secret;
-
-    if (!error) {
-        memcpy((void *)entry.secret, (const void*)& (time.tv_sec), sizeof time.tv_sec);
-    }
+    // Salt for the key genaration algorithm
+    memcpy((void *)entry.secret, (void *)key_mat->salt, SALT_SIZE);
 
     // HMAC calculation
     if (!error) {
+        // Unmask to get the real key
+        uint8_t key[AES_KEYLEN];
+        memcpy(key, key_mat->key_m, AES_KEYLEN);
+        xor_table(key, key_mat->mask, AES_KEYLEN);
+
         hmac_data(key, (char*)entry.information, (char*)entry.secret, entry.hash);
+    
+        memset(key, 0, sizeof key); // Zeroing the key
     }
 
     // Write the special record
@@ -648,10 +693,9 @@ int save_special_entry(T_Shared * pt_sh, int fp, const uint8_t * key) {
  * Parameter 1: the shared structure
  * Parameter 2: the list of the entries
  * Parameter 3: the fullpath name the data file
- * Parameter 4: the master key masked
- * Parameter 5: the mask of the key
+ * Parameter 4: the key materials
  */
-void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const uint8_t * key_m, const uint8_t * mask) {
+void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const Key_Material * key_mat) {
     int fp = -1;
     int error = 0;
     
@@ -668,13 +712,8 @@ void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const uint
     // If a file has been opened we can continue
     if (fp != -1 && !error) {
 
-        // Umask to get the real key
-        uint8_t key[AES_KEYLEN];
-        memcpy(key, key_m, AES_KEYLEN);
-        xor_table(key, mask, AES_KEYLEN);
-
         // Create the special record
-        error = save_special_entry(pt_sh, fp, key);
+        error = save_special_entry(pt_sh, fp, key_mat);
 
         // Write entries to the list
         if (!error)
@@ -702,7 +741,6 @@ void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const uint
             } while(!isEmpty_DLList(list));
 
         close(fp);
-        memset(key, 0, sizeof key); // Zeroing the key
 
     } else {
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to create or open data file!");
@@ -713,11 +751,10 @@ void save_data(T_Shared * pt_sh, DLList list, const char * file_name, const uint
  * Exports plaintext data to a text file
  *
  * Parameter 1: the shared structure
- * Parameter 2: the master key masked
- * Parameter 3: the mask of the key 
- * Parameter 4: the list of the entries
+ * Parameter 2: the key materials
+ * Parameter 3: the list of the entries
  */
-void do_command_export(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
+void do_command_export(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
     if (!isEmpty_DLList(list)) {
 
         char file_export[MAXPATHLEN];
@@ -742,7 +779,7 @@ void do_command_export(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * 
 
             do {
                 // In-memory decryption
-                uncypher_data(key_m, mask, list->pdata, information, secret);
+                uncypher_data(key_mat, list->pdata, information, secret);
 
                 // Writing information field to the export file
                 fin = index((const char *)information, '\0');
@@ -805,12 +842,11 @@ void do_command_export(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * 
  * Imports data from a text file
  *
  * Parameter 1: the shared structure
- * Parameter 2: the master key masked
- * Parameter 3: the mask of the key
- * Parameter 4: the list of the entries
+ * Parameter 2: key materials
+ * Parameter 3: the list of the entries
  * Return value: the list modified
  */
-DLList do_command_import(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t * mask, DLList list) {
+DLList do_command_import(T_Shared * pt_sh, const Key_Material * key_mat, DLList list) {
     char file_import[MAXPATHLEN];
     char message[MAXPATHLEN + 50];
     FILE * pf;
@@ -840,7 +876,7 @@ DLList do_command_import(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t 
 
                 if (data) {
                     // In-memory encryption
-                    cypher_data(key_m, mask, pentry);
+                    cypher_data(key_mat, pentry);
 
                     // Add into the list
                     list = addAtLast_DLList(list, pentry);
@@ -868,20 +904,28 @@ DLList do_command_import(T_Shared * pt_sh, const uint8_t * key_m, const uint8_t 
  *
  * Parameter 1: the shared structure
  * Parameter 2: the executable name file
- * Parameter 3: the generated key
- * Parameter 4: the mask of the key
- * Parameter 5: the list of the entries
+ * Parameter 3: the key materials
+ * Parameter 4: the list of the entries
  * Return value: 0 if OK
  */
-int do_command_key(T_Shared * pt_sh, char * exec_name, uint8_t * key_m, uint8_t * mask, DLList * list) {
+int do_command_key(T_Shared * pt_sh, char * exec_name, Key_Material * key_mat, DLList * list) {
     char passwd[PWD_MAX_SIZE];
 
     get_shared_cmd_1arg(pt_sh, passwd, PWD_MAX_SIZE); // Get the password
-    int error = generate_key(pt_sh, exec_name, key_m, mask, (uint8_t *)passwd); // Generate the key
+    
+    // Get the salt
+    int error = get_salt_for_key_generation(pt_sh, key_mat, FILE_DATA_NAME);
+    
+    if (!error) { 
+        // Generate the key
+        error = generate_key(pt_sh, exec_name, key_mat, (uint8_t *)passwd);
+    }
 
     if (!error) {
         memset(passwd, 0, PWD_MAX_SIZE);
-        *list = load_data(pt_sh, key_m, mask, FILE_DATA_NAME); // Load and control data
+
+        // Load and control data
+        *list = load_data(pt_sh, key_mat, FILE_DATA_NAME);
                             
         // Request to display a message about the number of entries loaded
         int nbEntries = size_DLList(*list);
@@ -905,8 +949,7 @@ void * thread_core(void * t_arg) {
     T_Shared * pt_sh = pt_core->t_sh;   // Access to the shared structure
 
     int has_key = 0; // Flag to indicate whether the key is known or not
-    uint8_t key_m[AES_KEYLEN]; // Encryption key masked
-    uint8_t mask[AES_KEYLEN]; // Mask of the key
+    Key_Material key_mat;
 
     DLList list = NULL; // The list containing the encrypted data
     int nbEntries; // Store the size of the list
@@ -926,7 +969,7 @@ void * thread_core(void * t_arg) {
             // Compute the key then load data
             case CORE_CMD_KEY:
                 if (!has_key) {
-                    int error = do_command_key(pt_sh, pt_core->exec_name, key_m, mask, & list);
+                    int error = do_command_key(pt_sh, pt_core->exec_name, &key_mat, &list);
                     if (!error) {
                         has_key = 1;
                         add_shared_cmd_0arg(pt_sh, HMI_CMD_SIGNEDIN); // We inform the user is signed in
@@ -940,7 +983,7 @@ void * thread_core(void * t_arg) {
             // Decryption then request display on the HMI side
             case CORE_CMD_PRINT:
                 if (has_key)
-                    do_command_print(pt_sh, key_m, mask, list);
+                    do_command_print(pt_sh, &key_mat, list);
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
                 delete_shared_cmd(pt_sh, 0); // Delete the command
@@ -950,8 +993,8 @@ void * thread_core(void * t_arg) {
             // Add a new entry
             case CORE_CMD_ADD:
                 if (has_key) {
-                    list = do_command_add(pt_sh, key_m, mask, list);
-                    save_data(pt_sh, list, FILE_DATA_NAME, key_m, mask);
+                    list = do_command_add(pt_sh, &key_mat, list);
+                    save_data(pt_sh, list, FILE_DATA_NAME, &key_mat);
                 }
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
@@ -962,7 +1005,7 @@ void * thread_core(void * t_arg) {
             // Filtering entries according to a pattern
             case CORE_CMD_SEARCH:
                 if (has_key)
-                    do_command_search(pt_sh, key_m, mask, list);
+                    do_command_search(pt_sh, &key_mat, list);
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
                 delete_shared_cmd(pt_sh, 1); // Delete the command
@@ -972,7 +1015,7 @@ void * thread_core(void * t_arg) {
             // Request to return the entry to be deleted
             case CORE_CMD_DEL_P1:
                 if (has_key)
-                    nbEntry = do_command_get_entry_from_number(pt_sh, key_m, mask, list); // We store the entry number to be deleted
+                    nbEntry = do_command_get_entry_from_number(pt_sh, &key_mat, list); // We store the entry number to be deleted
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
                 
@@ -993,7 +1036,7 @@ void * thread_core(void * t_arg) {
                 get_shared_cmd_1arg(pt_sh, response, 2);
                 if (response[0] == 'y') {
                     list = do_command_delete_exec(pt_sh, list, nbEntry);
-                    save_data(pt_sh, list, FILE_DATA_NAME, key_m, mask);
+                    save_data(pt_sh, list, FILE_DATA_NAME, &key_mat);
                     add_shared_cmd_0arg(pt_sh, HMI_CMD_CLEAR_WINDOW); // We ask to clear the window
                 }
                 delete_shared_cmd(pt_sh, 1); // Delete the command
@@ -1003,7 +1046,7 @@ void * thread_core(void * t_arg) {
             // Request to export to a text file
             case CORE_CMD_EXP:
                 if (has_key)                
-                    do_command_export(pt_sh, key_m, mask, list);
+                    do_command_export(pt_sh, &key_mat, list);
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
                 delete_shared_cmd(pt_sh, 1); // Delete the command
@@ -1014,9 +1057,9 @@ void * thread_core(void * t_arg) {
             case CORE_CMD_IMP:
                 if (has_key) {
                     nbEntries = size_DLList(list);
-                    list = do_command_import(pt_sh, key_m, mask, list);
+                    list = do_command_import(pt_sh, &key_mat, list);
                     if (size_DLList(list) != nbEntries)
-                        save_data(pt_sh, list, FILE_DATA_NAME, key_m, mask);
+                        save_data(pt_sh, list, FILE_DATA_NAME, &key_mat);
                 }
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
@@ -1034,7 +1077,7 @@ void * thread_core(void * t_arg) {
             case CORE_CMD_EDT_P1:
                 if (has_key)
                     // We store the entry number to edit
-                    nbEntry = do_command_get_entry_from_number(pt_sh, key_m, mask, list);
+                    nbEntry = do_command_get_entry_from_number(pt_sh, &key_mat, list);
                 else
                     add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "...but we don't have password!");
                 
@@ -1051,13 +1094,13 @@ void * thread_core(void * t_arg) {
 
             // Save the entry that has been edited
             case CORE_CMD_EDT_P2:
-                list = do_command_edit(pt_sh, key_m, mask, nbEntry, list);
-                save_data(pt_sh, list, FILE_DATA_NAME, key_m, mask);
+                list = do_command_edit(pt_sh, &key_mat, nbEntry, list);
+                save_data(pt_sh, list, FILE_DATA_NAME, &key_mat);
                 delete_shared_cmd(pt_sh, 2); // Delete the command
                 
                 // Request to print the modified entry
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_CLEAR_WINDOW);
-                search_and_print(pt_sh, key_m, mask, list, NULL, nbEntry);
+                search_and_print(pt_sh, &key_mat, list, NULL, nbEntry);
                 
                 // Finally, request to return to the interaction mode
                 add_shared_cmd_0arg(pt_sh, HMI_CMD_LOOP_INTER);
@@ -1069,8 +1112,8 @@ void * thread_core(void * t_arg) {
     }
 
     del_DLList(&list); // We delete the list and its contents
-    memset(key_m, 0, AES_KEYLEN); // We forget the masked key
-    memset(mask, 0, AES_KEYLEN); // We forget the mask
+    memset(key_mat.key_m, 0, AES_KEYLEN); // We forget the masked key
+    memset(key_mat.mask, 0, AES_KEYLEN); // We forget the mask
 
     return NULL;
 }

@@ -1,7 +1,13 @@
 Changelog
 =========
 
-v1.7.0 (2025-12-13)
+v1.7.1 (2025-02-06)
+-------------------
+
+- Use an implentation of the key derivation algorithm PBKDF2 (with HMAC_SHA256)
+- Some code refactoring
+
+v1.7.0 (2024-12-13)
 -------------------
 
 - Now, you can edit an existing entry

@@ -6,8 +6,6 @@
 #include <stdint.h>
 
 #include "crypto.h"
-#include "aes.h"
-#include "sha256.h"
 
 /*
  *  Random Number Generator using /dev/urandom
@@ -32,28 +30,68 @@ void rng(uint8_t *buf, int len) {
   }
 }
 
-/*
- *  Generate a key from a password using AES as entropic generator
- *  AES256 must be defined
- *  Warning: length(pwd) >= length(key) 
+/**
+ * Key derivation function
+ * Generate a key from a password and a salt according PBKDF2 algorithm
+ * Parameter 1: the password is a string of byte terminated by '\0'
+ * Parameter 2: the password length in byte
+ * Parameter 3: the salt (must be >= 8 bytes)
+ * Parameter 4: the salt length in byte
+ * Parameter 5: the iteration count
+ * Parameter 6: the length in byte of the generated key
+ * Parameter 7: the generated key
+ * Return value: -1 if KO, 0 if OK
  */
-void pwdtokey(uint8_t *pwd, int lenpwd, uint8_t *key) {
-    uint8_t iv[AES_BLOCKLEN] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
-    struct AES_ctx ctx;
+int KDF_PBKDF2(const uint8_t *pwd, int pwd_len, const uint8_t *salt, int salt_len, int count, long dkLen, uint8_t * key) {
+    
+    #define hLen 32 // Size of the SHA256 output hash function 
 
-    for (int j = 0; j < AES_KEYLEN; j++)
-            key[j] = pwd[j];
+    // If dkLen is too long
+    if (dkLen > (exponentInteger(2, 32) - 1) * hLen) {
+        return -1;
+    } else {
+        int r = dkLen % hLen;   // Size of the last "block"
+        int l;                  // Number of blocks
 
-    for (int i = 0; i < MAX_ROUND_PWDTOKEY; i++) {
-        AES_init_ctx_iv(&ctx, key, iv);
-        AES_CBC_encrypt_buffer(&ctx, pwd, lenpwd);
+        l = (r > 0) ? 1 + (dkLen - r) / hLen : dkLen / hLen; 
 
-        iv[i % AES_BLOCKLEN]++; // New IV
+        uint8_t hmac_j[hLen];
+        uint8_t hmac_r[hLen];
 
-        for (int j = 0; j < AES_KEYLEN; j++)
-            key[j] = pwd[j];
+        uint8_t * first_salt;
+
+        first_salt = malloc(salt_len + 4);
+        memcpy(first_salt, salt, salt_len);
+
+        for (uint32_t i = 1; i <= l; i++) {
+
+            #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+            uint32_t ibis = littleToBigEndian(i);
+            #else
+            uint32_t ibis = i;
+            #endif
+            memcpy(first_salt+salt_len, &ibis, 4);
+
+            hmac_sha256(first_salt, salt_len + 4, pwd, pwd_len, hmac_j);
+            memcpy(hmac_r, hmac_j, hLen);
+
+            for (int j = 2; j <= count; j++) {
+                hmac_sha256(hmac_j, hLen, pwd, pwd_len, hmac_j);
+                xor_table(hmac_r, hmac_j, hLen);
+            }
+
+            if (i < l || r == 0) {
+                memcpy(key, hmac_r, hLen);
+                key += hLen;
+            } else {
+                memcpy(key, hmac_r, r);
+            }
+        }
+
+        free(first_salt);
     }
 
+    return 0;
 }
 
 /*
