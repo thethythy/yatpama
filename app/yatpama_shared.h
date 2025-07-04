@@ -7,7 +7,7 @@
 #include "../lib/aes.h"
 #include "../lib/dllist.h"
 
-#define EXEC_VERSION "v1.6.1" // The version of the executable
+#define EXEC_VERSION "v1.7.2" // The version of the executable
 
 #define TIMEOUT_LOCK 60 // Timeout in seconds before locking the terminal
 #define EXEC_INTERVAL_TIME 60 // Time interval in seconds between two execution

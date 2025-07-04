@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v1.7.2 (2025-07-04)
+-------------------
+- Control the application lifecyle with masked signals
+- Some code refactoring
+
 v1.7.1 (2025-02-06)
 -------------------
 
