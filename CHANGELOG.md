@@ -1,6 +1,10 @@
 Changelog
 =========
 
+v1.7.3 (2025-07-04)
+-------------------
+- A_ITALIC is unknowned on some macOS?
+
 v1.7.2 (2025-07-04)
 -------------------
 - Control the application lifecyle with masked signals

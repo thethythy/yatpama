@@ -15,7 +15,6 @@ void rng(uint8_t *buf, int len) {
   int randomDataSource = open("/dev/urandom", O_RDONLY);
   if (randomDataSource < 0) {
       fprintf(stderr, "Impossible to open entropic source\n");
-      close(randomDataSource);
       exit(1);
   }
   else {

@@ -332,10 +332,10 @@ void displayAnAlertMessage(WINDOW * win, char * message, int isSignedIn) {
 
     wmove(win, 1, 4);
     wclrtoeol(win); // Clear line
-    wattron(win, A_DIM | A_ITALIC);
+    wattron(win, A_DIM);
     wprintw(win, "%s", message);
     wrefresh(win);
-    wattroff(win, A_DIM | A_ITALIC);
+    wattroff(win, A_DIM);
 }
 
 /*
