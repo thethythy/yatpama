@@ -43,19 +43,26 @@ int get_hash_executable(T_Shared * pt_sh, char * argv0, uint8_t * hash) {
     *path = '\0';
     getAbsolutePath(FILE_EXEC_NAME, argv0, path, sizeof(path));
 
-    if (*path != '\0') {
-        char * canonical_path = realpath(path, NULL);
-        char message[MAXPATHLEN*2 + 20];
-        sprintf(message, "Reference used: %s", canonical_path);       
-        add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
-        free(canonical_path);
-        int error = compute_hash_executable(path, hash);
-        if (error) {
-            add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to open the executable file for computing its hash!");
-            return -1;
-        }
-    } else {
+    if (*path == '\0') {
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to get access to the executable file!");
+        return -1;
+    }
+
+    char * canonical_path = realpath(path, NULL);
+    if (canonical_path == NULL) {
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to resolve the executable path!");
+        return -1;
+    }
+
+    char message[MAXPATHLEN*2 + 20];
+    sprintf(message, "Reference used: %s", canonical_path);       
+    add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, message);
+    free(canonical_path);
+
+    // Finally compute the hash value of the executable
+    int error = compute_hash_executable(path, hash);
+    if (error) {
+        add_shared_cmd_1arg(pt_sh, HMI_CMD_ERROR, "Impossible to open the executable file for computing its hash!");
         return -1;
     }
 
@@ -122,7 +129,7 @@ int generate_key(T_Shared * pt_sh, char * argv0, Key_Material * key_mat, uint8_t
         add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "Password does not conform to password policy!");
     else {
         // Generate a key from the password
-        KDF_PBKDF2(msecret, sizeof msecret, key_mat->salt, SALT_SIZE, MAX_ROUND_PBKDF2, AES_KEYLEN, key_mat->key_m);
+        KDF_PBKDF2(msecret, strlen((char *)msecret), key_mat->salt, SALT_SIZE, MAX_ROUND_PBKDF2, AES_KEYLEN, key_mat->key_m);
 
         // Generate final key = key_from_pwd xor hash_from_executable
         BYTE hash[AES_KEYLEN];
@@ -554,7 +561,7 @@ DLList load_data(T_Shared * pt_sh, const Key_Material * key_mat, const char * fi
                     // Add the entry into the list
                     list = addAtLast_DLList(list, pentry);
                 } else {
-                    free(pentry);  // TODO
+                    free(pentry);
                 }
 
             } while(!error);
@@ -763,9 +770,8 @@ void do_command_export(T_Shared * pt_sh, const Key_Material * key_mat, DLList li
         // Get the name of the export file
         get_shared_cmd_1arg(pt_sh, file_export, MAXPATHLEN);
 
-        // Try to create or open in overwrite mode
+        // Try to create a new file
         fp = open(file_export, O_CREAT | O_EXCL | O_WRONLY, 0600);
-        if (fp == -1) fp = open(file_export, O_WRONLY | O_TRUNC);
 
         if (fp != -1) {
 
@@ -831,7 +837,7 @@ void do_command_export(T_Shared * pt_sh, const Key_Material * key_mat, DLList li
             }
 
         } else {
-            add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "Impossible to create or open the exportation file!");
+            add_shared_cmd_1arg(pt_sh, HMI_CMD_ALERT, "Impossible to create the exportation file! (this file may aleady exist!)");
         }
 
     } else

@@ -4,8 +4,21 @@
 #include <strings.h>
 #include <unistd.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 
 #include "utilities.h"
+
+/**
+ * Check that the path refers to a regular file executable
+ * by the current user.
+ */
+static int is_executable_file(const char *path) {
+    struct stat file_stat;
+
+    return stat(path, &file_stat) == 0
+        && S_ISREG(file_stat.st_mode)
+        && access(path, X_OK) == 0;
+}
 
 /*
  * Print a string of hexadecimal values
@@ -25,7 +38,7 @@ void printfh(const uint8_t *str, int len) {
  * (3) If it contains no '/', search in the PATH
  */
 void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t pathlen) {
-    // 1er cass : absolute path
+    // 1er case : absolute path
     if (argv0[0] == '/') {
         strncpy(abspath, argv0, pathlen);
         abspath[pathlen-1] = '\0';
@@ -43,6 +56,9 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
     else {
         // We retrieve a reference on the PATH
         const char * PATH_ENV = getenv("PATH");
+        if (PATH_ENV == NULL) {
+            return;
+        }
 
         // Copy of environment variable required because it is modified
         char * path;
@@ -62,8 +78,8 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
             // Create the absolute path by concatenating the path and file name
             snprintf(abspath, pathlen, "%s/%s", pos_debut, filename);
 
-            // Test whether the file exists and is accessible
-            if (access(abspath, F_OK) == 0) {
+            // Test whether the file exists and is executable
+            if (is_executable_file(abspath)) {
                 break; // Found --> we stop the loop
             } else {
                 *abspath = '\0'; // We continue after "reset" the tested path
@@ -74,6 +90,11 @@ void getAbsolutePath(const char * filename, char * argv0, char *abspath, size_t 
         } while(pos_fin);
 
         free(path);
+    }
+
+    // Verify if the resolved path is an executable file
+    if (*abspath != '\0' && !is_executable_file(abspath)) {
+        *abspath = '\0'; // Reset the path
     }
 }
 
